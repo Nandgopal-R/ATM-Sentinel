@@ -1,0 +1,125 @@
+# ATM Sentinel — canonical telemetry schema
+# Single source of truth. The synthetic simulator today and the ESP32 firmware
+# later must both emit exactly this logical record.
+#
+# Rules:
+#   1. Missing / unreadable value  -> null  (NEVER 0, NEVER -999).
+#      The SENSOR_FAULT class needs a way to express "no reading".
+#   2. Labels NEVER appear in telemetry. Ground truth lives in events.csv.
+#   3. Sample rate on the node is 1 Hz. The node aggregates to 300 s feature
+#      windows for inference and publishes a 60 s summary upstream over MQTT.
+
+schema_version: "1.0.0"
+sample_rate_hz: 1.0
+publish_interval_s: 60
+window_s: 300
+window_stride_s: 60
+
+fields:
+
+  atm_id:
+    type: string
+    pattern: "^ATM_[0-9]{3}$"
+    description: Stable node identifier, burned into firmware.
+
+  timestamp:
+    type: integer
+    unit: unix_seconds_utc
+    description: Second-resolution UTC epoch at the START of the sample interval.
+
+  temperature:
+    type: float
+    unit: celsius
+    sensor: BME280
+    range: [-40.0, 85.0]
+    resolution: 0.01
+    accuracy: 1.0          # +/- degC, datasheet
+    noise_sigma: 0.02      # short-term RMS at 1 Hz, normal-mode oversampling
+    nullable: true
+
+  humidity:
+    type: float
+    unit: percent_rh
+    sensor: BME280
+    range: [0.0, 100.0]
+    resolution: 0.01
+    accuracy: 3.0          # +/- %RH, datasheet
+    noise_sigma: 0.05
+    nullable: true
+
+  pressure:
+    type: float
+    unit: hectopascal
+    sensor: BME280
+    range: [300.0, 1100.0]
+    resolution: 0.01
+    accuracy: 1.0
+    noise_sigma: 0.02
+    nullable: true
+    # NOTE: excluded from fault features by design. Indoor barometric pressure
+    # carries no cabinet-scale fault signal. Retained because (a) the BME280
+    # gives it for free and (b) it is the cleanest SENSOR_FAULT canary: a stuck
+    # or drifting pressure channel is physically implausible in a way that a
+    # stuck temperature channel is not.
+
+  light:
+    type: float
+    unit: lux
+    sensor: VEML7700
+    range: [0.0, 120000.0]
+    resolution: 0.1        # effective at the gain/IT setting used indoors
+    accuracy_pct: 1.0
+    noise_sigma: 0.8
+    nullable: true
+
+  voltage:
+    type: float
+    unit: volts_ac_rms
+    sensor: ZMPT101B + ESP32 ADC1
+    range: [0.0, 300.0]
+    resolution: 0.1        # post-calibration reporting resolution
+    accuracy: 2.0          # +/- V realistically achievable after calibration
+    noise_sigma: 0.4       # dominated by RMS-estimation error, not ADC LSB
+    nullable: true
+    nominal: 230.0
+
+  current:
+    type: float
+    unit: amperes_dc
+    sensor: INA219
+    range: [-3.2, 3.2]     # default 0.1 ohm shunt, 12-bit
+    resolution: 0.0008
+    accuracy: 0.01
+    noise_sigma: 0.002
+    nullable: true
+    # Measures the 12 V AUXILIARY rail (controller + cooling fan), not mains.
+    # This is why mains sags are visible on `voltage` but not on `current`
+    # until the SMPS actually drops out: the supply regulates the output rail.
+
+  vibration:
+    type: integer
+    unit: edge_count_per_interval
+    sensor: SW-420 (normally-closed), D0 -> ESP32 GPIO interrupt
+    range: [0, 200]
+    nullable: true
+    # The SW-420 NC module holds its contact CLOSED at rest and chatters open
+    # under vibration. Firmware counts falling edges with a 5 ms debounce and
+    # reports the count accumulated during the 1 s interval. It is NOT an
+    # amplitude. Any feature named *_magnitude would be a fiction.
+
+  motion:
+    type: integer
+    unit: boolean
+    sensor: HC-SR501 PIR
+    range: [0, 1]
+    nullable: true
+    # Output latches HIGH for the module's retriggerable hold time (3 s here)
+    # after each detection. Consecutive 1s are therefore correlated by
+    # construction; do not model as independent Bernoulli draws.
+
+# Fields deliberately NOT in telemetry:
+#   cash / transaction counts -> come from the bank's transaction system,
+#     not from a sensor. The ESP32 can never produce them. Handled separately
+#     by the NN5-backed cash-availability model.
+#   rssi / network state -> observable at the ESP8266 gateway, not the node.
+#     Network failure is a gateway rule, not a Stage-2 class.

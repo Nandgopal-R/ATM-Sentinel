@@ -1,0 +1,207 @@
+# ATM Sentinel simulator — default configuration.
+# Every constant here is a knob. Values are parametric-calibrated: chosen from
+# sensor datasheets, IS 12360 / CEA mains tolerances, and published indoor
+# sensor-network statistics. See qa/CALIBRATION.md for the justification of each.
+
+seed: 20260918
+schema: schema.yaml
+
+run:
+  hours: 4.0
+  sample_rate_hz: 1.0
+  # Runs start at a random wall-clock time so every scenario is seen across
+  # the whole diurnal cycle. Without this the model learns "hot = 3pm".
+  start_hour_range: [0.0, 24.0]
+
+fleet:
+  n_atms: 44
+  # ATM identities are partitioned BEFORE generation so that per-device sensor
+  # bias cannot leak between splits.
+  split_fractions: {train: 0.70, validation: 0.15, test: 0.15}
+
+counts:
+  # Runs are allocated per SUBTYPE, not per Stage-2 class. Allocating per class
+  # let the test split end up with two POWER runs that both happened to be short
+  # outages, leaving 3 test windows for the whole class. Per-subtype allocation
+  # guarantees every split sees every failure mode.
+  normal_runs: 30
+  runs_per_subtype:
+    COOLING_DEGRADATION: 12
+    FAN_STALL: 8
+    HIGH_HUMIDITY: 22
+    POWER_UNDERVOLTAGE: 8
+    POWER_OVERVOLTAGE: 8
+    POWER_INSTABILITY: 8
+    POWER_OUTAGE: 10
+    TAMPER: 56          # short incidents, so this class needs the most runs
+    SENSOR_STUCK: 7
+    SENSOR_BIAS: 7
+    SENSOR_DRIFT: 7
+    SENSOR_SPIKE: 7
+    SENSOR_NOISE: 7
+
+# ---------------------------------------------------------------- environment
+environment:
+  # Generic Indian metro, annual-average conditions.
+  outdoor_temp_mean_c: 29.0
+  outdoor_temp_amplitude_c: 5.0
+  outdoor_temp_peak_hour: 15.0
+  outdoor_rh_mean_pct: 62.0
+  outdoor_rh_amplitude_pct: 14.0     # anti-phase with temperature
+  pressure_mean_hpa: 1008.0
+  pressure_semidiurnal_amp_hpa: 1.2  # real atmospheric tide, S2 at 10h/22h LT
+  pressure_synoptic_sigma_hpa: 0.9   # slow random walk, tau ~ 6 h
+  pressure_synoptic_tau_s: 21600.0
+
+lobby:
+  # Air-conditioned ATM vestibule.
+  ac_setpoint_c: 24.5
+  ac_hysteresis_c: 0.8               # compressor cycles across this band
+  ac_cycle_period_s: 1100.0          # ~18 min, typical split-AC short cycle
+  infiltration_gain: 0.10            # fraction of outdoor swing that leaks in
+  ac_dehumid_factor: 0.88            # fraction of outdoor absolute humidity kept
+  lighting_lux: 185.0                # 24/7 artificial lighting
+  lighting_jitter_sigma: 1.2
+  daylight_peak_lux: 240.0           # through the glazing at solar noon
+  daylight_peak_hour: 12.5
+  occupancy_shadow_lux: -22.0        # a person standing at the fascia
+
+# ------------------------------------------------------------------- thermal
+# Lumped first-order cabinet model:
+#   C dT/dt = (T_lobby - T)/R + Q_elec - k_cool * health * (T - T_lobby)
+# Steady-state rise = Q_elec / (1/R + k_cool*health):
+#   health 1.0 -> ~4.1 K above lobby  (cabinet ~28.6 C at a 24.5 C setpoint)
+#   health 0.0 -> ~22 K above lobby   (cabinet ~46 C — a genuinely dead fan)
+# Time constant tau = C / (1/R + k_cool*health):
+#   health 1.0 -> ~8 min   (healthy cabinet tracks the lobby closely)
+#   health 0.0 -> ~43 min  (slow ramp to failure — the whole point)
+thermal:
+  heat_capacity_j_per_k: 6480.0
+  passive_conductance_w_per_k: 2.5   # 1/R
+  cooling_conductance_w_per_k: 11.0  # k_cool at health = 1
+  q_electronics_w: 55.0
+  q_electronics_jitter_w: 1.5
+  q_transaction_burst_w: 40.0        # dispenser + printer during a withdrawal
+  humidity_tau_s: 420.0              # cabinet AH lags lobby AH
+
+# --------------------------------------------------------------------- power
+power:
+  mains_nominal_v: 230.0
+  mains_drift_sigma_v: 2.2           # Ornstein-Uhlenbeck, slow grid wander
+  mains_drift_tau_s: 900.0
+  mains_noise_sigma_v: 0.35
+  # Background load sags on a shared distribution transformer.
+  sag_rate_per_hour: 2.5
+  sag_depth_v: [3.0, 12.0]
+  sag_duration_s: [2.0, 25.0]
+  rail_voltage_v: 12.0
+  smps_dropout_v: 165.0              # below this the 12 V rail can no longer hold
+  p_aux_base_w: 11.0                 # controller, sensors, comms on the aux rail
+  p_fan_nominal_w: 6.0
+  fan_strain_beta: 1.35              # current rise per unit of lost cooling health
+  p_node_only_w: 2.4                 # aux draw when the fan has stopped
+
+# -------------------------------------------------------------------- events
+events:
+  # Non-homogeneous Poisson footfall, transactions per hour by local hour.
+  hourly_rate:
+    [1.0, 0.6, 0.4, 0.4, 0.6, 1.5, 3.5, 6.0, 9.0, 12.0, 13.0, 12.0,
+     10.0,  9.5, 9.0, 9.5, 11.0, 13.5, 14.0, 12.5, 9.0, 6.0, 3.5, 1.8]
+  presence_duration_s: [45.0, 130.0]
+  pir_hold_s: 3.0
+  # SW-420 NC edge counts.
+  vib_background_rate_per_s: 0.004   # building traffic, passing vehicles
+  vib_transaction_counts: [2, 14]    # card insert, keypad, shutter, dispense
+  vib_transaction_active_s: [3.0, 9.0]
+
+# ----------------------------------------------------------------- scenarios
+scenarios:
+  onset_fraction_range: [0.25, 0.50]  # where in the run the fault begins
+
+  COOLING_DEGRADATION:
+    develop_s: [1800.0, 5400.0]       # 30-90 min for health to reach its floor
+    health_floor: [0.05, 0.35]
+    failure_threshold_c: 38.0         # cabinet temp at which we call it failed
+  FAN_STALL:
+    develop_s: [3.0, 12.0]            # abrupt: bearing seizure / connector drop
+    health_floor: [0.0, 0.05]
+  HIGH_HUMIDITY:
+    develop_s: [1200.0, 4200.0]
+    ah_multiplier: [1.35, 1.90]       # moisture ingress raises absolute humidity
+  POWER_UNDERVOLTAGE:
+    develop_s: [60.0, 900.0]
+    target_v: [185.0, 207.0]
+  POWER_OVERVOLTAGE:
+    develop_s: [60.0, 900.0]
+    target_v: [253.0, 271.0]
+  POWER_INSTABILITY:
+    event_rate_per_hour: [40.0, 120.0]
+    depth_v: [12.0, 45.0]
+    duration_s: [1.0, 20.0]
+  POWER_OUTAGE:
+    develop_s: [1.0, 2.0]
+    outage_duration_s: [600.0, 5400.0]
+  TAMPER:
+    episodes: [4, 8]
+    burst_count: [4, 9]
+    burst_duration_s: [40.0, 200.0]
+    burst_gap_s: [30.0, 160.0]
+    intensity_counts_per_s: [18, 65]
+    prefer_low_footfall: true
+  SENSOR_FAULT:
+    channels: [temperature, humidity, pressure, light, voltage, current]
+    subtypes: [SENSOR_STUCK, SENSOR_BIAS, SENSOR_DRIFT, SENSOR_SPIKE, SENSOR_NOISE]
+    bias_sigma_multiple: [8.0, 40.0]   # offset expressed in channel noise sigmas
+    drift_total_sigma_multiple: [20.0, 120.0]
+    spike_rate_per_s: [0.01, 0.06]
+    spike_sigma_multiple: [15.0, 60.0]
+    noise_inflation: [12.0, 55.0]
+    null_rate: [0.0, 0.08]
+
+# ------------------------------------------------------------------- sensors
+sensors:
+  # Fixed per-device calibration offset, drawn once per ATM and held for life.
+  # Without this the model memorises absolute values and fails on a new unit.
+  device_bias_sigma:
+    temperature: 0.45
+    humidity: 1.60
+    pressure: 0.60
+    light_pct: 3.5
+    voltage: 0.90
+    current: 0.0035
+  dropout_rate: 0.00002              # spontaneous single-sample read failure
+
+# ------------------------------------------------------------------ windowing
+windowing:
+  window_s: 300
+  train_stride_s: 60
+  eval_stride_s: 300                 # non-overlapping for validation and test
+  ambiguous_purity_threshold: 0.80   # drop windows straddling an onset
+  balance_target_per_class: 1150
+
+labels:
+  # simulator state -> Stage-2 class
+  map:
+    NORMAL: NORMAL
+    COOLING_DEGRADATION: COOLING_FAILURE
+    COOLING_FAILURE: COOLING_FAILURE
+    FAN_STALL: COOLING_FAILURE
+    HIGH_HUMIDITY: HIGH_HUMIDITY
+    POWER_UNDERVOLTAGE: POWER_FAILURE
+    POWER_OVERVOLTAGE: POWER_FAILURE
+    POWER_INSTABILITY: POWER_FAILURE
+    POWER_OUTAGE: POWER_FAILURE
+    TAMPER: TAMPER
+    SENSOR_STUCK: SENSOR_FAULT
+    SENSOR_BIAS: SENSOR_FAULT
+    SENSOR_DRIFT: SENSOR_FAULT
+    SENSOR_SPIKE: SENSOR_FAULT
+    SENSOR_NOISE: SENSOR_FAULT
+  stage1:
+    NORMAL: HEALTHY
+    _default: ABNORMAL
+
+output:
+  raw_format: parquet
+  raw_dir: data/raw
+  data_dir: data

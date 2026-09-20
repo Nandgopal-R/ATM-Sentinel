@@ -1,0 +1,116 @@
+{
+  "split": "validation",
+  "strategies": [
+    {
+      "accuracy": 0.879746835443038,
+      "balanced_accuracy": 0.9104570181731229,
+      "confusion_matrix": {
+        "labels": [
+          "NORMAL",
+          "ABNORMAL"
+        ],
+        "values": [
+          [
+            244,
+            2
+          ],
+          [
+            93,
+            451
+          ]
+        ]
+      },
+      "counts": {
+        "fn": 93,
+        "fp": 2,
+        "tn": 244,
+        "tp": 451
+      },
+      "description": "A: maximize validation balanced accuracy",
+      "f1_abnormal": 0.9047141424272819,
+      "n_samples": 790,
+      "negative_label": "NORMAL",
+      "positive_label": "ABNORMAL",
+      "precision_abnormal": 0.9955849889624724,
+      "recall_abnormal": 0.8290441176470589,
+      "roc_auc": 0.9069150526064083,
+      "specificity_normal": 0.991869918699187,
+      "strategy": "balanced_accuracy",
+      "threshold": 0.7615026235580444
+    },
+    {
+      "accuracy": 0.7962025316455696,
+      "balanced_accuracy": 0.7328879722620756,
+      "confusion_matrix": {
+        "labels": [
+          "NORMAL",
+          "ABNORMAL"
+        ],
+        "values": [
+          [
+            139,
+            107
+          ],
+          [
+            54,
+            490
+          ]
+        ]
+      },
+      "counts": {
+        "fn": 54,
+        "fp": 107,
+        "tn": 139,
+        "tp": 490
+      },
+      "description": "B: recall >= 0.90, then highest specificity",
+      "f1_abnormal": 0.8588957055214724,
+      "n_samples": 790,
+      "negative_label": "NORMAL",
+      "positive_label": "ABNORMAL",
+      "precision_abnormal": 0.8207705192629816,
+      "recall_abnormal": 0.9007352941176471,
+      "roc_auc": 0.9069150526064083,
+      "specificity_normal": 0.5650406504065041,
+      "strategy": "recall_90",
+      "threshold": 0.051815371960401535
+    },
+    {
+      "accuracy": 0.7164556962025317,
+      "balanced_accuracy": 0.574777319464371,
+      "confusion_matrix": {
+        "labels": [
+          "NORMAL",
+          "ABNORMAL"
+        ],
+        "values": [
+          [
+            49,
+            197
+          ],
+          [
+            27,
+            517
+          ]
+        ]
+      },
+      "counts": {
+        "fn": 27,
+        "fp": 197,
+        "tn": 49,
+        "tp": 517
+      },
+      "description": "C: recall >= 0.95, then highest specificity",
+      "f1_abnormal": 0.821939586645469,
+      "n_samples": 790,
+      "negative_label": "NORMAL",
+      "positive_label": "ABNORMAL",
+      "precision_abnormal": 0.7240896358543417,
+      "recall_abnormal": 0.9503676470588235,
+      "roc_auc": 0.9069150526064083,
+      "specificity_normal": 0.1991869918699187,
+      "strategy": "recall_95",
+      "threshold": 0.011954676359891891
+    }
+  ]
+}

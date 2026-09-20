@@ -1,0 +1,6 @@
+{
+  "selected_on": "validation only",
+  "selection_description": "maximize balanced accuracy",
+  "selection_strategy": "balanced_accuracy",
+  "threshold": 0.7615026235580444
+}

@@ -1,0 +1,150 @@
+{
+  "accuracy": 0.9136029411764706,
+  "balanced_accuracy": 0.9243148083362487,
+  "confusion_matrix": {
+    "labels": [
+      "COOLING_FAILURE",
+      "HIGH_HUMIDITY",
+      "POWER_FAILURE",
+      "TAMPER",
+      "SENSOR_FAULT"
+    ],
+    "values": [
+      [
+        84,
+        2,
+        0,
+        0,
+        2
+      ],
+      [
+        1,
+        83,
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        0,
+        103,
+        0,
+        4
+      ],
+      [
+        0,
+        0,
+        0,
+        128,
+        0
+      ],
+      [
+        4,
+        0,
+        32,
+        1,
+        99
+      ]
+    ]
+  },
+  "labels": [
+    "COOLING_FAILURE",
+    "HIGH_HUMIDITY",
+    "POWER_FAILURE",
+    "TAMPER",
+    "SENSOR_FAULT"
+  ],
+  "macro_f1": 0.9182307135255648,
+  "macro_precision": 0.9218928204167611,
+  "macro_recall": 0.9243148083362487,
+  "n_samples": 544,
+  "per_class": {
+    "COOLING_FAILURE": {
+      "f1": 0.9491525423728814,
+      "precision": 0.9438202247191011,
+      "recall": 0.9545454545454546,
+      "support": 88
+    },
+    "HIGH_HUMIDITY": {
+      "f1": 0.9764705882352941,
+      "precision": 0.9764705882352941,
+      "recall": 0.9764705882352941,
+      "support": 85
+    },
+    "POWER_FAILURE": {
+      "f1": 0.8512396694214877,
+      "precision": 0.762962962962963,
+      "recall": 0.9626168224299065,
+      "support": 107
+    },
+    "SENSOR_FAULT": {
+      "f1": 0.8181818181818182,
+      "precision": 0.9339622641509434,
+      "recall": 0.7279411764705882,
+      "support": 136
+    },
+    "TAMPER": {
+      "f1": 0.9961089494163424,
+      "precision": 0.9922480620155039,
+      "recall": 1.0,
+      "support": 128
+    }
+  },
+  "sensor_fault_subtypes": {
+    "SENSOR_BIAS": {
+      "accuracy": 1.0,
+      "n_samples": 26,
+      "predicted_class_counts": {
+        "COOLING_FAILURE": 0,
+        "HIGH_HUMIDITY": 0,
+        "POWER_FAILURE": 0,
+        "SENSOR_FAULT": 26,
+        "TAMPER": 0
+      }
+    },
+    "SENSOR_DRIFT": {
+      "accuracy": 0.9705882352941176,
+      "n_samples": 34,
+      "predicted_class_counts": {
+        "COOLING_FAILURE": 0,
+        "HIGH_HUMIDITY": 0,
+        "POWER_FAILURE": 0,
+        "SENSOR_FAULT": 33,
+        "TAMPER": 1
+      }
+    },
+    "SENSOR_NOISE": {
+      "accuracy": 0.0,
+      "n_samples": 25,
+      "predicted_class_counts": {
+        "COOLING_FAILURE": 0,
+        "HIGH_HUMIDITY": 0,
+        "POWER_FAILURE": 25,
+        "SENSOR_FAULT": 0,
+        "TAMPER": 0
+      }
+    },
+    "SENSOR_SPIKE": {
+      "accuracy": 0.9615384615384616,
+      "n_samples": 26,
+      "predicted_class_counts": {
+        "COOLING_FAILURE": 0,
+        "HIGH_HUMIDITY": 0,
+        "POWER_FAILURE": 1,
+        "SENSOR_FAULT": 25,
+        "TAMPER": 0
+      }
+    },
+    "SENSOR_STUCK": {
+      "accuracy": 0.6,
+      "n_samples": 25,
+      "predicted_class_counts": {
+        "COOLING_FAILURE": 4,
+        "HIGH_HUMIDITY": 0,
+        "POWER_FAILURE": 6,
+        "SENSOR_FAULT": 15,
+        "TAMPER": 0
+      }
+    }
+  }
+}

@@ -2,3 +2,24 @@ data/raw/
 __pycache__/
 .pytest_cache/
 venv/
+
+# Python environments and tool caches
+.venv/
+env/
+ENV/
+.uv/
+*.py[cod]
+*$py.class
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+
+# Keep frozen model files and evaluation artifacts versioned: they are small,
+# required to run the cascade evaluation, and document the held-out results.

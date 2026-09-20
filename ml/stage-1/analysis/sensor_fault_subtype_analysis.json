@@ -1,0 +1,333 @@
+{
+  "model_changed": false,
+  "original_threshold": 0.7615026,
+  "split": "validation only",
+  "subtypes": {
+    "SENSOR_BIAS": {
+      "bucket": "B: subtle ML fault",
+      "false_negative_rate": 1.0,
+      "false_negatives": 26,
+      "fault_channel": "temperature",
+      "n_windows": 26,
+      "original_threshold": 0.7615026,
+      "probability_distribution": {
+        "max": 0.48361605405807495,
+        "mean": 0.1350845731794834,
+        "median": 0.08872506022453308,
+        "min": 0.020418785512447357,
+        "p05": 0.021733474917709827,
+        "p25": 0.055023699067533016,
+        "p75": 0.2076827995479107,
+        "p95": 0.2853343337774277
+      },
+      "reason": "A fixed offset remains within the declared schema range and can resemble stable per-device calibration bias.",
+      "recommendation": "retain for ML",
+      "relevant_feature_comparison_to_normal": {
+        "temperature_delta": {
+          "fault_mean": -0.013076923076923081,
+          "fault_median": -0.05,
+          "normal_mean": -0.01536585365853659,
+          "normal_median": -0.03
+        },
+        "temperature_max": {
+          "fault_mean": 28.598076923076924,
+          "fault_median": 28.61,
+          "normal_mean": 29.036869918699185,
+          "normal_median": 29.0
+        },
+        "temperature_mean": {
+          "fault_mean": 28.45306923076923,
+          "fault_median": 28.4896,
+          "normal_mean": 28.877722764227645,
+          "normal_median": 28.8291
+        },
+        "temperature_min": {
+          "fault_mean": 28.30038461538462,
+          "fault_median": 28.305,
+          "normal_mean": 28.71743902439024,
+          "normal_median": 28.655
+        },
+        "temperature_null_frac": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": 1.3550121951219511e-05,
+          "normal_median": 0.0
+        },
+        "temperature_slope": {
+          "fault_mean": -0.0025655792307692302,
+          "fault_median": -0.0022790799999999997,
+          "normal_mean": -0.00326698263699187,
+          "normal_median": -0.0056454650000000006
+        },
+        "temperature_std": {
+          "fault_mean": 0.07236213461538461,
+          "fault_median": 0.07223925,
+          "normal_mean": 0.07797346382113823,
+          "normal_median": 0.0735936
+        }
+      },
+      "rule": "Only schema-range violations or persistent endpoint saturation are deterministic; otherwise use ML/cross-channel checks."
+    },
+    "SENSOR_DRIFT": {
+      "bucket": "B: subtle ML fault",
+      "false_negative_rate": 1.0,
+      "false_negatives": 34,
+      "fault_channel": "humidity",
+      "n_windows": 34,
+      "original_threshold": 0.7615026,
+      "probability_distribution": {
+        "max": 0.17618918418884277,
+        "mean": 0.05085953164790921,
+        "median": 0.04583935998380184,
+        "min": 0.006435577291995287,
+        "p05": 0.011835348745808006,
+        "p25": 0.021899097599089146,
+        "p75": 0.05964634474366903,
+        "p95": 0.13333147652447214
+      },
+      "reason": "The simulator ramps a bounded offset; it can remain physically plausible and within schema limits.",
+      "recommendation": "retain for ML",
+      "relevant_feature_comparison_to_normal": {
+        "humidity_delta": {
+          "fault_mean": -0.10470588235294119,
+          "fault_median": -0.11499999999999999,
+          "normal_mean": 0.04069105691056911,
+          "normal_median": 0.045
+        },
+        "humidity_max": {
+          "fault_mean": 56.966764705882355,
+          "fault_median": 56.885,
+          "normal_mean": 56.54073170731707,
+          "normal_median": 56.56
+        },
+        "humidity_mean": {
+          "fault_mean": 56.44878823529411,
+          "fault_median": 56.52345,
+          "normal_mean": 56.02160569105691,
+          "normal_median": 56.15705
+        },
+        "humidity_min": {
+          "fault_mean": 55.97852941176471,
+          "fault_median": 56.165,
+          "normal_mean": 55.50739837398374,
+          "normal_median": 55.585
+        },
+        "humidity_null_frac": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": 1.3550121951219511e-05,
+          "normal_median": 0.0
+        },
+        "humidity_slope": {
+          "fault_mean": -0.02275202826470588,
+          "fault_median": -0.03308535,
+          "normal_mean": 0.0077889804211382085,
+          "normal_median": 0.00984951
+        },
+        "humidity_std": {
+          "fault_mean": 0.25477683529411765,
+          "fault_median": 0.223223,
+          "normal_mean": 0.2661366504065041,
+          "normal_median": 0.2337745
+        }
+      },
+      "rule": "Only schema-range violations or persistent endpoint saturation are deterministic; otherwise use ML/cross-channel checks."
+    },
+    "SENSOR_NOISE": {
+      "bucket": "B: subtle ML fault",
+      "false_negative_rate": 0.0,
+      "false_negatives": 0,
+      "fault_channel": "voltage",
+      "n_windows": 25,
+      "original_threshold": 0.7615026,
+      "probability_distribution": {
+        "max": 1.0,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "p05": 1.0,
+        "p25": 1.0,
+        "p75": 1.0,
+        "p95": 1.0
+      },
+      "reason": "Variance inflation is in-range and must be distinguished from environmental or load variation.",
+      "recommendation": "retain for ML",
+      "relevant_feature_comparison_to_normal": {
+        "voltage_delta": {
+          "fault_mean": -1.124000000000001,
+          "fault_median": 0.8,
+          "normal_mean": -0.11341463414634145,
+          "normal_median": 0.1
+        },
+        "voltage_max": {
+          "fault_mean": 292.31199999999995,
+          "fault_median": 290.9,
+          "normal_mean": 232.22195121951222,
+          "normal_median": 231.95
+        },
+        "voltage_mean": {
+          "fault_mean": 229.67899999999997,
+          "fault_median": 229.648,
+          "normal_mean": 229.95339837398376,
+          "normal_median": 229.6815
+        },
+        "voltage_min": {
+          "fault_mean": 169.16800000000003,
+          "fault_median": 170.5,
+          "normal_mean": 226.22642276422764,
+          "normal_median": 226.95
+        },
+        "voltage_null_frac": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": 1.3550121951219511e-05,
+          "normal_median": 0.0
+        },
+        "voltage_slope": {
+          "fault_mean": -0.09303799999999997,
+          "fault_median": 0.056782,
+          "normal_mean": -0.008542879186991871,
+          "normal_median": 0.00795742
+        },
+        "voltage_std": {
+          "fault_mean": 21.682248,
+          "fault_median": 21.5663,
+          "normal_mean": 1.0465429430894309,
+          "normal_median": 0.849576
+        }
+      },
+      "rule": "Reject samples outside schema range before clipping; retain in-range variance changes for ML."
+    },
+    "SENSOR_SPIKE": {
+      "bucket": "B: subtle ML fault",
+      "false_negative_rate": 0.0,
+      "false_negatives": 0,
+      "fault_channel": "current",
+      "n_windows": 26,
+      "original_threshold": 0.7615026,
+      "probability_distribution": {
+        "max": 0.9999997615814209,
+        "mean": 0.9933033768947308,
+        "median": 0.9998918175697327,
+        "min": 0.8676027655601501,
+        "p05": 0.972304955124855,
+        "p25": 0.9996017217636108,
+        "p75": 0.999975711107254,
+        "p95": 0.9999949038028717
+      },
+      "reason": "Spikes are clipped to schema range before telemetry is emitted and may be indistinguishable from a real transient.",
+      "recommendation": "retain for ML",
+      "relevant_feature_comparison_to_normal": {
+        "current_delta": {
+          "fault_mean": -0.006492307692307692,
+          "fault_median": 0.0032,
+          "normal_mean": -0.0005138211382113819,
+          "normal_median": -0.0008
+        },
+        "current_max": {
+          "fault_mean": 1.5512615384615385,
+          "fault_median": 1.552,
+          "normal_mean": 1.432520325203252,
+          "normal_median": 1.432
+        },
+        "current_mean": {
+          "fault_mean": 1.4125534615384614,
+          "fault_median": 1.412805,
+          "normal_mean": 1.414838048780488,
+          "normal_median": 1.41293
+        },
+        "current_min": {
+          "fault_mean": 1.2752923076923077,
+          "fault_median": 1.2716,
+          "normal_mean": 1.397639024390244,
+          "normal_median": 1.3968
+        },
+        "current_null_frac": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": 2.7100243902439022e-05,
+          "normal_median": 0.0
+        },
+        "current_slope": {
+          "fault_mean": -0.00014938566153846158,
+          "fault_median": -5.2853999999999986e-06,
+          "normal_mean": 1.4303434959349666e-06,
+          "normal_median": -7.418750000000001e-06
+        },
+        "current_std": {
+          "fault_mean": 0.024208169230769235,
+          "fault_median": 0.024844650000000003,
+          "normal_mean": 0.006023678414634146,
+          "normal_median": 0.00600474
+        }
+      },
+      "rule": "Reject samples outside schema range before clipping; retain in-range transient detection for ML."
+    },
+    "SENSOR_STUCK": {
+      "bucket": "A: deterministic integrity fault",
+      "false_negative_rate": 1.0,
+      "false_negatives": 25,
+      "fault_channel": "current",
+      "n_windows": 25,
+      "original_threshold": 0.7615026,
+      "probability_distribution": {
+        "max": 0.011954676359891891,
+        "mean": 0.0031202542269602417,
+        "median": 0.0018185870721936226,
+        "min": 0.00040946947410702705,
+        "p05": 0.00047833427670411764,
+        "p25": 0.0008567042532376945,
+        "p75": 0.004288938827812672,
+        "p95": 0.009635832346975796
+      },
+      "reason": "Simulator freezes the post-onset raw value exactly, optionally adding nulls.",
+      "recommendation": "pre-ML rule",
+      "relevant_feature_comparison_to_normal": {
+        "current_delta": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": -0.0005138211382113819,
+          "normal_median": -0.0008
+        },
+        "current_max": {
+          "fault_mean": 1.4104,
+          "fault_median": 1.4104,
+          "normal_mean": 1.432520325203252,
+          "normal_median": 1.432
+        },
+        "current_mean": {
+          "fault_mean": 1.4104,
+          "fault_median": 1.4104,
+          "normal_mean": 1.414838048780488,
+          "normal_median": 1.41293
+        },
+        "current_min": {
+          "fault_mean": 1.4104,
+          "fault_median": 1.4104,
+          "normal_mean": 1.397639024390244,
+          "normal_median": 1.3968
+        },
+        "current_null_frac": {
+          "fault_mean": 0.006399996799999999,
+          "fault_median": 0.00666667,
+          "normal_mean": 2.7100243902439022e-05,
+          "normal_median": 0.0
+        },
+        "current_slope": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": 1.4303434959349666e-06,
+          "normal_median": -7.418750000000001e-06
+        },
+        "current_std": {
+          "fault_mean": 0.0,
+          "fault_median": 0.0,
+          "normal_mean": 0.006023678414634146,
+          "normal_median": 0.00600474
+        }
+      },
+      "rule": "Flag a nullable float channel when all non-null samples in a 300 s inference window equal one schema-quantized value; also flag a sustained missing run that prevents a 60 s publish interval from being formed."
+    }
+  },
+  "threshold_changed": false
+}

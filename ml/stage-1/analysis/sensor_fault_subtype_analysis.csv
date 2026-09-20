@@ -1,0 +1,6 @@
+subtype,fault_channel,n_windows,probability_median,probability_mean,false_negatives,false_negative_rate,bucket,recommendation
+SENSOR_BIAS,temperature,26,0.08872506,0.13508458,26,1.0,B: subtle ML fault,retain for ML
+SENSOR_DRIFT,humidity,34,0.04583936,0.05085953,34,1.0,B: subtle ML fault,retain for ML
+SENSOR_NOISE,voltage,25,1.0,1.0,0,0.0,B: subtle ML fault,retain for ML
+SENSOR_SPIKE,current,26,0.9998918,0.99330336,0,0.0,B: subtle ML fault,retain for ML
+SENSOR_STUCK,current,25,0.0018185871,0.0031202543,25,1.0,A: deterministic integrity fault,pre-ML rule

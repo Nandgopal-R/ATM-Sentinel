@@ -1,0 +1,35 @@
+{
+  "accuracy": 0.8863636363636364,
+  "balanced_accuracy": 0.910011023839052,
+  "confusion_matrix": {
+    "labels": [
+      "NORMAL",
+      "ABNORMAL"
+    ],
+    "values": [
+      [
+        238,
+        8
+      ],
+      [
+        87,
+        503
+      ]
+    ]
+  },
+  "counts": {
+    "fn": 87,
+    "fp": 8,
+    "tn": 238,
+    "tp": 503
+  },
+  "f1_abnormal": 0.9137148047229791,
+  "n_samples": 836,
+  "negative_label": "NORMAL",
+  "positive_label": "ABNORMAL",
+  "precision_abnormal": 0.9843444227005871,
+  "recall_abnormal": 0.8525423728813559,
+  "roc_auc": 0.9104864268981674,
+  "specificity_normal": 0.967479674796748,
+  "threshold": 0.7615026235580444
+}

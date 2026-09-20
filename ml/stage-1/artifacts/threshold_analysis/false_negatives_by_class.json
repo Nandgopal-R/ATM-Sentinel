@@ -1,0 +1,128 @@
+{
+  "split": "validation",
+  "strategies": {
+    "balanced_accuracy": {
+      "rows": [
+        {
+          "false_negative_rate": 0.022727272727272728,
+          "false_negatives": 2,
+          "label": "COOLING_FAILURE",
+          "n_abnormal": 88,
+          "probability_median": 1.0
+        },
+        {
+          "false_negative_rate": 0.047058823529411764,
+          "false_negatives": 4,
+          "label": "HIGH_HUMIDITY",
+          "n_abnormal": 85,
+          "probability_median": 0.9999083876609802
+        },
+        {
+          "false_negative_rate": 0.018691588785046728,
+          "false_negatives": 2,
+          "label": "POWER_FAILURE",
+          "n_abnormal": 107,
+          "probability_median": 1.0
+        },
+        {
+          "false_negative_rate": 0.625,
+          "false_negatives": 85,
+          "label": "SENSOR_FAULT",
+          "n_abnormal": 136,
+          "probability_median": 0.0901954397559166
+        },
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "TAMPER",
+          "n_abnormal": 128,
+          "probability_median": 0.9999890923500061
+        }
+      ],
+      "threshold": 0.7615026235580444,
+      "total_false_negatives": 93
+    },
+    "recall_90": {
+      "rows": [
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "COOLING_FAILURE",
+          "n_abnormal": 88,
+          "probability_median": 1.0
+        },
+        {
+          "false_negative_rate": 0.023529411764705882,
+          "false_negatives": 2,
+          "label": "HIGH_HUMIDITY",
+          "n_abnormal": 85,
+          "probability_median": 0.9999083876609802
+        },
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "POWER_FAILURE",
+          "n_abnormal": 107,
+          "probability_median": 1.0
+        },
+        {
+          "false_negative_rate": 0.38235294117647056,
+          "false_negatives": 52,
+          "label": "SENSOR_FAULT",
+          "n_abnormal": 136,
+          "probability_median": 0.0901954397559166
+        },
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "TAMPER",
+          "n_abnormal": 128,
+          "probability_median": 0.9999890923500061
+        }
+      ],
+      "threshold": 0.051815371960401535,
+      "total_false_negatives": 54
+    },
+    "recall_95": {
+      "rows": [
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "COOLING_FAILURE",
+          "n_abnormal": 88,
+          "probability_median": 1.0
+        },
+        {
+          "false_negative_rate": 0.011764705882352941,
+          "false_negatives": 1,
+          "label": "HIGH_HUMIDITY",
+          "n_abnormal": 85,
+          "probability_median": 0.9999083876609802
+        },
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "POWER_FAILURE",
+          "n_abnormal": 107,
+          "probability_median": 1.0
+        },
+        {
+          "false_negative_rate": 0.19117647058823528,
+          "false_negatives": 26,
+          "label": "SENSOR_FAULT",
+          "n_abnormal": 136,
+          "probability_median": 0.0901954397559166
+        },
+        {
+          "false_negative_rate": 0.0,
+          "false_negatives": 0,
+          "label": "TAMPER",
+          "n_abnormal": 128,
+          "probability_median": 0.9999890923500061
+        }
+      ],
+      "threshold": 0.011954676359891891,
+      "total_false_negatives": 27
+    }
+  }
+}

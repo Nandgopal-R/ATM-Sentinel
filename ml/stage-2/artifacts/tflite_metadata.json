@@ -1,0 +1,30 @@
+{
+  "file_bytes": 6844,
+  "format": "TFLite / LiteRT FlatBuffer",
+  "input": {
+    "contract": "57 train-standardized then clipped-to-+/-8 features in data/manifest.json order",
+    "dtype": "<class 'numpy.float32'>",
+    "shape": [
+      1,
+      57
+    ]
+  },
+  "output": {
+    "dtype": "<class 'numpy.float32'>",
+    "label_mapping": {
+      "0": "COOLING_FAILURE",
+      "1": "HIGH_HUMIDITY",
+      "2": "POWER_FAILURE",
+      "3": "TAMPER",
+      "4": "SENSOR_FAULT"
+    },
+    "meaning": "softmax probabilities",
+    "shape": [
+      1,
+      5
+    ]
+  },
+  "quantization": "float32; built-in Dense/ReLU/Softmax operations only",
+  "validation_argmax_agreement": 1.0,
+  "validation_max_abs_probability_difference": 2.5331974029541016e-07
+}

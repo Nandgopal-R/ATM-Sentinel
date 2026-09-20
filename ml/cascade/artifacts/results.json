@@ -1,0 +1,173 @@
+{
+  "evaluation": "frozen end-to-end Stage 1 -> Stage 2 cascade on held-out test split",
+  "n_samples": 836,
+  "final_labels": [
+    "NORMAL",
+    "COOLING_FAILURE",
+    "HIGH_HUMIDITY",
+    "POWER_FAILURE",
+    "TAMPER",
+    "SENSOR_FAULT"
+  ],
+  "frozen_artifacts": {
+    "stage1_model": "ml/stage-1/artifacts/stage1.keras",
+    "stage1_threshold": 0.7615026235580444,
+    "stage2_model": "ml/stage-2/artifacts/stage2.keras",
+    "preprocessing": "data/manifest.json + data/scaler.json; existing normalization and +/-8 clipping"
+  },
+  "overall": {
+    "accuracy": 0.8265550239234449,
+    "balanced_accuracy": 0.814758828849712,
+    "macro_precision": 0.8454597023347024,
+    "macro_recall": 0.8147588288497118,
+    "macro_f1": 0.8035728535042708
+  },
+  "per_class": {
+    "NORMAL": {
+      "precision": 0.7323076923076923,
+      "recall": 0.967479674796748,
+      "f1": 0.8336252189141856,
+      "support": 246
+    },
+    "COOLING_FAILURE": {
+      "precision": 0.9444444444444444,
+      "recall": 0.9550561797752809,
+      "f1": 0.9497206703910615,
+      "support": 89
+    },
+    "HIGH_HUMIDITY": {
+      "precision": 0.8391608391608392,
+      "recall": 0.9375,
+      "f1": 0.8856088560885609,
+      "support": 128
+    },
+    "POWER_FAILURE": {
+      "precision": 0.8020833333333334,
+      "recall": 0.8020833333333334,
+      "f1": 0.8020833333333334,
+      "support": 96
+    },
+    "TAMPER": {
+      "precision": 0.9928571428571429,
+      "recall": 0.9928571428571429,
+      "f1": 0.9928571428571429,
+      "support": 140
+    },
+    "SENSOR_FAULT": {
+      "precision": 0.7619047619047619,
+      "recall": 0.23357664233576642,
+      "f1": 0.3575418994413408,
+      "support": 137
+    }
+  },
+  "confusion_matrix": {
+    "labels": [
+      "NORMAL",
+      "COOLING_FAILURE",
+      "HIGH_HUMIDITY",
+      "POWER_FAILURE",
+      "TAMPER",
+      "SENSOR_FAULT"
+    ],
+    "values": [
+      [
+        238,
+        0,
+        1,
+        0,
+        0,
+        7
+      ],
+      [
+        0,
+        85,
+        2,
+        0,
+        0,
+        2
+      ],
+      [
+        8,
+        0,
+        120,
+        0,
+        0,
+        0
+      ],
+      [
+        19,
+        0,
+        0,
+        77,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        139,
+        1
+      ],
+      [
+        60,
+        5,
+        20,
+        19,
+        1,
+        32
+      ]
+    ]
+  },
+  "cascade_error_sources": {
+    "abnormal_stopped_by_stage1_as_normal": {
+      "count": 87,
+      "percentage_of_abnormal": 0.14745762711864407
+    },
+    "normal_forwarded_to_stage2": {
+      "count": 8,
+      "percentage_of_normal": 0.032520325203252036
+    },
+    "stage2_errors_after_correct_stage1_routing": {
+      "count": 50,
+      "percentage_of_correctly_routed_faults": 0.09940357852882704
+    },
+    "stage2_invocations": {
+      "count": 511,
+      "percentage_of_all_windows": 0.611244019138756
+    }
+  },
+  "fault_class_routing": {
+    "COOLING_FAILURE": {
+      "total_test_windows": 89,
+      "stage1_missed_as_normal": 0,
+      "reached_stage2": 89,
+      "finally_classified_correctly": 85
+    },
+    "HIGH_HUMIDITY": {
+      "total_test_windows": 128,
+      "stage1_missed_as_normal": 8,
+      "reached_stage2": 120,
+      "finally_classified_correctly": 120
+    },
+    "POWER_FAILURE": {
+      "total_test_windows": 96,
+      "stage1_missed_as_normal": 19,
+      "reached_stage2": 77,
+      "finally_classified_correctly": 77
+    },
+    "TAMPER": {
+      "total_test_windows": 140,
+      "stage1_missed_as_normal": 0,
+      "reached_stage2": 140,
+      "finally_classified_correctly": 139
+    },
+    "SENSOR_FAULT": {
+      "total_test_windows": 137,
+      "stage1_missed_as_normal": 60,
+      "reached_stage2": 77,
+      "finally_classified_correctly": 32
+    }
+  }
+}

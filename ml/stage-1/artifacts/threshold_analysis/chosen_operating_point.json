@@ -1,0 +1,76 @@
+{
+  "description": "B: recall >= 0.90, then highest specificity",
+  "selected_on": "validation only",
+  "strategy": "recall_90",
+  "test": {
+    "accuracy": 0.7727272727272727,
+    "balanced_accuracy": 0.6707041477194433,
+    "confusion_matrix": {
+      "labels": [
+        "NORMAL",
+        "ABNORMAL"
+      ],
+      "values": [
+        [
+          104,
+          142
+        ],
+        [
+          48,
+          542
+        ]
+      ]
+    },
+    "counts": {
+      "fn": 48,
+      "fp": 142,
+      "tn": 104,
+      "tp": 542
+    },
+    "f1_abnormal": 0.8508634222919937,
+    "n_samples": 836,
+    "negative_label": "NORMAL",
+    "positive_label": "ABNORMAL",
+    "precision_abnormal": 0.7923976608187134,
+    "recall_abnormal": 0.9186440677966101,
+    "roc_auc": 0.9104864268981674,
+    "specificity_normal": 0.42276422764227645,
+    "threshold": 0.051815371960401535
+  },
+  "threshold": 0.051815371960401535,
+  "validation": {
+    "accuracy": 0.7962025316455696,
+    "balanced_accuracy": 0.7328879722620756,
+    "confusion_matrix": {
+      "labels": [
+        "NORMAL",
+        "ABNORMAL"
+      ],
+      "values": [
+        [
+          139,
+          107
+        ],
+        [
+          54,
+          490
+        ]
+      ]
+    },
+    "counts": {
+      "fn": 54,
+      "fp": 107,
+      "tn": 139,
+      "tp": 490
+    },
+    "f1_abnormal": 0.8588957055214724,
+    "n_samples": 790,
+    "negative_label": "NORMAL",
+    "positive_label": "ABNORMAL",
+    "precision_abnormal": 0.8207705192629816,
+    "recall_abnormal": 0.9007352941176471,
+    "roc_auc": 0.9069150526064083,
+    "specificity_normal": 0.5650406504065041,
+    "threshold": 0.051815371960401535
+  }
+}

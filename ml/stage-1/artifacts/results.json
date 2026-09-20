@@ -1,0 +1,92 @@
+{
+  "architecture": [
+    57,
+    16,
+    8,
+    1
+  ],
+  "best_validation_auc_epoch": 25,
+  "class_counts": {
+    "train_abnormal": 5750,
+    "train_normal": 1150
+  },
+  "class_weight": {
+    "ABNORMAL_1": 0.6,
+    "NORMAL_0": 3.0
+  },
+  "epochs_ran": 50,
+  "epochs_requested": 200,
+  "normalization": "data/scaler.json, fitted on train only; standardized values clipped to +/-8",
+  "seed": 20260918,
+  "test": {
+    "accuracy": 0.8863636363636364,
+    "balanced_accuracy": 0.910011023839052,
+    "confusion_matrix": {
+      "labels": [
+        "NORMAL",
+        "ABNORMAL"
+      ],
+      "values": [
+        [
+          238,
+          8
+        ],
+        [
+          87,
+          503
+        ]
+      ]
+    },
+    "counts": {
+      "fn": 87,
+      "fp": 8,
+      "tn": 238,
+      "tp": 503
+    },
+    "f1_abnormal": 0.9137148047229791,
+    "n_samples": 836,
+    "negative_label": "NORMAL",
+    "positive_label": "ABNORMAL",
+    "precision_abnormal": 0.9843444227005871,
+    "recall_abnormal": 0.8525423728813559,
+    "roc_auc": 0.9104864268981674,
+    "specificity_normal": 0.967479674796748,
+    "threshold": 0.7615026235580444
+  },
+  "trainable_parameters": 1073,
+  "validation": {
+    "accuracy": 0.879746835443038,
+    "balanced_accuracy": 0.9104570181731229,
+    "confusion_matrix": {
+      "labels": [
+        "NORMAL",
+        "ABNORMAL"
+      ],
+      "values": [
+        [
+          244,
+          2
+        ],
+        [
+          93,
+          451
+        ]
+      ]
+    },
+    "counts": {
+      "fn": 93,
+      "fp": 2,
+      "tn": 244,
+      "tp": 451
+    },
+    "f1_abnormal": 0.9047141424272819,
+    "n_samples": 790,
+    "negative_label": "NORMAL",
+    "positive_label": "ABNORMAL",
+    "precision_abnormal": 0.9955849889624724,
+    "recall_abnormal": 0.8290441176470589,
+    "roc_auc": 0.9069150526064083,
+    "specificity_normal": 0.991869918699187,
+    "threshold": 0.7615026235580444
+  }
+}

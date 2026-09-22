@@ -23,3 +23,5 @@ htmlcov/
 
 # Keep frozen model files and evaluation artifacts versioned: they are small,
 # required to run the cascade evaluation, and document the held-out results.
+.playwright-mcp/
+*.db

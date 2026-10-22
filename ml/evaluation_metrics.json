@@ -1,0 +1,1052 @@
+{
+  "about": {
+    "project": "ATM Sentinel",
+    "data": "synthetic, physically modelled telemetry (atmsim); test split = held-out ATM units and runs, never used for training or threshold selection",
+    "audio_data": "~37 s of internet audio clips plus synthetic background/abnormal variants; DISPENSE test windows come from a held-out recording",
+    "hardware": "all numbers are offline (PC) evaluations; none are measured on the deployed ESP32",
+    "confusion_matrix_layout": "rows = true class, columns = predicted class"
+  },
+  "health_cascade": {
+    "stage1_normal_vs_abnormal": {
+      "model": "MLP 57-16-8-1, sigmoid; INT8 TFLite on ESP32",
+      "trainable_parameters": 1073,
+      "validation": {
+        "n_samples": 790,
+        "threshold": 0.7615,
+        "accuracy": 0.8797,
+        "balanced_accuracy": 0.9105,
+        "precision_abnormal": 0.9956,
+        "recall_abnormal": 0.829,
+        "f1_abnormal": 0.9047,
+        "specificity_normal": 0.9919,
+        "roc_auc": 0.9069,
+        "confusion_matrix": {
+          "labels": [
+            "NORMAL",
+            "ABNORMAL"
+          ],
+          "values": [
+            [
+              244,
+              2
+            ],
+            [
+              93,
+              451
+            ]
+          ]
+        }
+      },
+      "test": {
+        "n_samples": 836,
+        "threshold": 0.7615,
+        "accuracy": 0.8864,
+        "balanced_accuracy": 0.91,
+        "precision_abnormal": 0.9843,
+        "recall_abnormal": 0.8525,
+        "f1_abnormal": 0.9137,
+        "specificity_normal": 0.9675,
+        "roc_auc": 0.9105,
+        "confusion_matrix": {
+          "labels": [
+            "NORMAL",
+            "ABNORMAL"
+          ],
+          "values": [
+            [
+              238,
+              8
+            ],
+            [
+              87,
+              503
+            ]
+          ]
+        }
+      }
+    },
+    "stage2_fault_type": {
+      "model": "MLP 57-16-8-5, softmax; INT8 TFLite on ESP32",
+      "trainable_parameters": 1109,
+      "note": "independent Stage 2 evaluation conditioned on known ABNORMAL input",
+      "validation": {
+        "n_samples": 544,
+        "accuracy": 0.9136,
+        "balanced_accuracy": 0.9243,
+        "macro_precision": 0.9219,
+        "macro_recall": 0.9243,
+        "macro_f1": 0.9182,
+        "per_class": {
+          "COOLING_FAILURE": {
+            "f1": 0.9492,
+            "precision": 0.9438,
+            "recall": 0.9545,
+            "support": 88
+          },
+          "HIGH_HUMIDITY": {
+            "f1": 0.9765,
+            "precision": 0.9765,
+            "recall": 0.9765,
+            "support": 85
+          },
+          "POWER_FAILURE": {
+            "f1": 0.8512,
+            "precision": 0.763,
+            "recall": 0.9626,
+            "support": 107
+          },
+          "SENSOR_FAULT": {
+            "f1": 0.8182,
+            "precision": 0.934,
+            "recall": 0.7279,
+            "support": 136
+          },
+          "TAMPER": {
+            "f1": 0.9961,
+            "precision": 0.9922,
+            "recall": 1.0,
+            "support": 128
+          }
+        },
+        "confusion_matrix": {
+          "labels": [
+            "COOLING_FAILURE",
+            "HIGH_HUMIDITY",
+            "POWER_FAILURE",
+            "TAMPER",
+            "SENSOR_FAULT"
+          ],
+          "values": [
+            [
+              84,
+              2,
+              0,
+              0,
+              2
+            ],
+            [
+              1,
+              83,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              103,
+              0,
+              4
+            ],
+            [
+              0,
+              0,
+              0,
+              128,
+              0
+            ],
+            [
+              4,
+              0,
+              32,
+              1,
+              99
+            ]
+          ]
+        },
+        "sensor_fault_subtypes": {
+          "SENSOR_BIAS": {
+            "accuracy": 1.0,
+            "n_samples": 26,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 0,
+              "SENSOR_FAULT": 26,
+              "TAMPER": 0
+            }
+          },
+          "SENSOR_DRIFT": {
+            "accuracy": 0.9706,
+            "n_samples": 34,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 0,
+              "SENSOR_FAULT": 33,
+              "TAMPER": 1
+            }
+          },
+          "SENSOR_NOISE": {
+            "accuracy": 0.0,
+            "n_samples": 25,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 25,
+              "SENSOR_FAULT": 0,
+              "TAMPER": 0
+            }
+          },
+          "SENSOR_SPIKE": {
+            "accuracy": 0.9615,
+            "n_samples": 26,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 1,
+              "SENSOR_FAULT": 25,
+              "TAMPER": 0
+            }
+          },
+          "SENSOR_STUCK": {
+            "accuracy": 0.6,
+            "n_samples": 25,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 4,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 6,
+              "SENSOR_FAULT": 15,
+              "TAMPER": 0
+            }
+          }
+        }
+      },
+      "test": {
+        "n_samples": 590,
+        "accuracy": 0.8847,
+        "balanced_accuracy": 0.8921,
+        "macro_precision": 0.8843,
+        "macro_recall": 0.8921,
+        "macro_f1": 0.8828,
+        "per_class": {
+          "COOLING_FAILURE": {
+            "f1": 0.9392,
+            "precision": 0.9239,
+            "recall": 0.9551,
+            "support": 89
+          },
+          "HIGH_HUMIDITY": {
+            "f1": 0.8849,
+            "precision": 0.82,
+            "recall": 0.9609,
+            "support": 128
+          },
+          "POWER_FAILURE": {
+            "f1": 0.8627,
+            "precision": 0.8148,
+            "recall": 0.9167,
+            "support": 96
+          },
+          "SENSOR_FAULT": {
+            "f1": 0.7342,
+            "precision": 0.87,
+            "recall": 0.635,
+            "support": 137
+          },
+          "TAMPER": {
+            "f1": 0.9929,
+            "precision": 0.9929,
+            "recall": 0.9929,
+            "support": 140
+          }
+        },
+        "confusion_matrix": {
+          "labels": [
+            "COOLING_FAILURE",
+            "HIGH_HUMIDITY",
+            "POWER_FAILURE",
+            "TAMPER",
+            "SENSOR_FAULT"
+          ],
+          "values": [
+            [
+              85,
+              2,
+              0,
+              0,
+              2
+            ],
+            [
+              0,
+              123,
+              0,
+              0,
+              5
+            ],
+            [
+              1,
+              2,
+              88,
+              0,
+              5
+            ],
+            [
+              0,
+              0,
+              0,
+              139,
+              1
+            ],
+            [
+              6,
+              23,
+              20,
+              1,
+              87
+            ]
+          ]
+        },
+        "sensor_fault_subtypes": {
+          "SENSOR_BIAS": {
+            "accuracy": 0.9655,
+            "n_samples": 29,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 1,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 0,
+              "SENSOR_FAULT": 28,
+              "TAMPER": 0
+            }
+          },
+          "SENSOR_DRIFT": {
+            "accuracy": 0.2667,
+            "n_samples": 30,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 3,
+              "POWER_FAILURE": 19,
+              "SENSOR_FAULT": 8,
+              "TAMPER": 0
+            }
+          },
+          "SENSOR_NOISE": {
+            "accuracy": 0.0,
+            "n_samples": 24,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 5,
+              "HIGH_HUMIDITY": 18,
+              "POWER_FAILURE": 0,
+              "SENSOR_FAULT": 0,
+              "TAMPER": 1
+            }
+          },
+          "SENSOR_SPIKE": {
+            "accuracy": 0.88,
+            "n_samples": 25,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 2,
+              "POWER_FAILURE": 1,
+              "SENSOR_FAULT": 22,
+              "TAMPER": 0
+            }
+          },
+          "SENSOR_STUCK": {
+            "accuracy": 1.0,
+            "n_samples": 29,
+            "predicted_class_counts": {
+              "COOLING_FAILURE": 0,
+              "HIGH_HUMIDITY": 0,
+              "POWER_FAILURE": 0,
+              "SENSOR_FAULT": 29,
+              "TAMPER": 0
+            }
+          }
+        }
+      }
+    },
+    "end_to_end": {
+      "n_samples": 836,
+      "overall": {
+        "accuracy": 0.8266,
+        "balanced_accuracy": 0.8148,
+        "macro_precision": 0.8455,
+        "macro_recall": 0.8148,
+        "macro_f1": 0.8036
+      },
+      "per_class": {
+        "NORMAL": {
+          "precision": 0.7323,
+          "recall": 0.9675,
+          "f1": 0.8336,
+          "support": 246
+        },
+        "COOLING_FAILURE": {
+          "precision": 0.9444,
+          "recall": 0.9551,
+          "f1": 0.9497,
+          "support": 89
+        },
+        "HIGH_HUMIDITY": {
+          "precision": 0.8392,
+          "recall": 0.9375,
+          "f1": 0.8856,
+          "support": 128
+        },
+        "POWER_FAILURE": {
+          "precision": 0.8021,
+          "recall": 0.8021,
+          "f1": 0.8021,
+          "support": 96
+        },
+        "TAMPER": {
+          "precision": 0.9929,
+          "recall": 0.9929,
+          "f1": 0.9929,
+          "support": 140
+        },
+        "SENSOR_FAULT": {
+          "precision": 0.7619,
+          "recall": 0.2336,
+          "f1": 0.3575,
+          "support": 137
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "NORMAL",
+          "COOLING_FAILURE",
+          "HIGH_HUMIDITY",
+          "POWER_FAILURE",
+          "TAMPER",
+          "SENSOR_FAULT"
+        ],
+        "values": [
+          [
+            238,
+            0,
+            1,
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            85,
+            2,
+            0,
+            0,
+            2
+          ],
+          [
+            8,
+            0,
+            120,
+            0,
+            0,
+            0
+          ],
+          [
+            19,
+            0,
+            0,
+            77,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            139,
+            1
+          ],
+          [
+            60,
+            5,
+            20,
+            19,
+            1,
+            32
+          ]
+        ]
+      },
+      "cascade_error_sources": {
+        "abnormal_stopped_by_stage1_as_normal": {
+          "count": 87,
+          "percentage_of_abnormal": 0.1475
+        },
+        "normal_forwarded_to_stage2": {
+          "count": 8,
+          "percentage_of_normal": 0.03252
+        },
+        "stage2_errors_after_correct_stage1_routing": {
+          "count": 50,
+          "percentage_of_correctly_routed_faults": 0.0994
+        },
+        "stage2_invocations": {
+          "count": 511,
+          "percentage_of_all_windows": 0.6112
+        }
+      },
+      "fault_class_routing": {
+        "COOLING_FAILURE": {
+          "total_test_windows": 89,
+          "stage1_missed_as_normal": 0,
+          "reached_stage2": 89,
+          "finally_classified_correctly": 85
+        },
+        "HIGH_HUMIDITY": {
+          "total_test_windows": 128,
+          "stage1_missed_as_normal": 8,
+          "reached_stage2": 120,
+          "finally_classified_correctly": 120
+        },
+        "POWER_FAILURE": {
+          "total_test_windows": 96,
+          "stage1_missed_as_normal": 19,
+          "reached_stage2": 77,
+          "finally_classified_correctly": 77
+        },
+        "TAMPER": {
+          "total_test_windows": 140,
+          "stage1_missed_as_normal": 0,
+          "reached_stage2": 140,
+          "finally_classified_correctly": 139
+        },
+        "SENSOR_FAULT": {
+          "total_test_windows": 137,
+          "stage1_missed_as_normal": 60,
+          "reached_stage2": 77,
+          "finally_classified_correctly": 32
+        }
+      }
+    },
+    "end_to_end_humidity_disabled": {
+      "description": "deployed configuration: BME280 humidity disabled, its 12 derived inputs fed z = 0 (training mean); same frozen models and test split",
+      "humidity_features_neutralised": [
+        "humidity_null_frac",
+        "humidity_mean",
+        "humidity_std",
+        "humidity_min",
+        "humidity_max",
+        "humidity_slope",
+        "humidity_delta",
+        "abs_humidity_mean",
+        "abs_humidity_std",
+        "abs_humidity_slope",
+        "dewpoint_mean",
+        "temp_rh_corr"
+      ],
+      "overall": {
+        "accuracy": 0.6926,
+        "balanced_accuracy": 0.665,
+        "macro_precision": 0.7002,
+        "macro_recall": 0.665,
+        "macro_f1": 0.6385
+      },
+      "per_class": {
+        "NORMAL": {
+          "precision": 0.5105,
+          "recall": 0.9919,
+          "f1": 0.674,
+          "support": 246
+        },
+        "COOLING_FAILURE": {
+          "precision": 0.9884,
+          "recall": 0.9551,
+          "f1": 0.9714,
+          "support": 89
+        },
+        "HIGH_HUMIDITY": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 128
+        },
+        "POWER_FAILURE": {
+          "precision": 0.8105,
+          "recall": 0.8021,
+          "f1": 0.8063,
+          "support": 96
+        },
+        "TAMPER": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 140
+        },
+        "SENSOR_FAULT": {
+          "precision": 0.8919,
+          "recall": 0.2409,
+          "f1": 0.3793,
+          "support": 137
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "NORMAL",
+          "COOLING_FAILURE",
+          "HIGH_HUMIDITY",
+          "POWER_FAILURE",
+          "TAMPER",
+          "SENSOR_FAULT"
+        ],
+        "rows": "true",
+        "columns": "predicted",
+        "values": [
+          [
+            244,
+            0,
+            0,
+            0,
+            0,
+            2
+          ],
+          [
+            2,
+            85,
+            0,
+            0,
+            0,
+            2
+          ],
+          [
+            128,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            19,
+            0,
+            0,
+            77,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            140,
+            0
+          ],
+          [
+            85,
+            1,
+            0,
+            18,
+            0,
+            33
+          ]
+        ]
+      }
+    }
+  },
+  "audio_tinyml": {
+    "classifier_deployed": {
+      "model": "B1_mlp_int8: MLP 36-16-3 full-integer INT8",
+      "classes": [
+        "BACKGROUND",
+        "DISPENSE",
+        "ABNORMAL"
+      ],
+      "flash_bytes": 3144,
+      "ram_bytes": 119,
+      "test": {
+        "accuracy": 0.9696,
+        "macro_f1": 0.7264,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 1.0,
+            "recall": 0.9896,
+            "f1": 0.9948,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 0.8378,
+            "recall": 0.9688,
+            "f1": 0.8986,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.5,
+            "recall": 0.2,
+            "f1": 0.2857,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            191,
+            2,
+            0
+          ],
+          [
+            0,
+            31,
+            1
+          ],
+          [
+            0,
+            4,
+            1
+          ]
+        ]
+      },
+      "leave_one_recording_out_mean_accuracy": 0.8136,
+      "float_vs_int8_agreement": 1.0,
+      "test_window_counts": [
+        {
+          "split": "test",
+          "label": "ABNORMAL",
+          "provenance": "original",
+          "n": 5
+        },
+        {
+          "split": "test",
+          "label": "BACKGROUND",
+          "provenance": "synthetic",
+          "n": 193
+        },
+        {
+          "split": "test",
+          "label": "DISPENSE",
+          "provenance": "original",
+          "n": 32
+        },
+        {
+          "split": "train",
+          "label": "ABNORMAL",
+          "provenance": "original",
+          "n": 7
+        },
+        {
+          "split": "train",
+          "label": "ABNORMAL",
+          "provenance": "synthetic",
+          "n": 490
+        },
+        {
+          "split": "train",
+          "label": "BACKGROUND",
+          "provenance": "original",
+          "n": 3
+        },
+        {
+          "split": "train",
+          "label": "BACKGROUND",
+          "provenance": "synthetic",
+          "n": 583
+        },
+        {
+          "split": "train",
+          "label": "DISPENSE",
+          "provenance": "original",
+          "n": 74
+        },
+        {
+          "split": "train",
+          "label": "DISPENSE",
+          "provenance": "synthetic",
+          "n": 914
+        }
+      ],
+      "caveat": "accuracy is dominated by synthetic BACKGROUND windows; ABNORMAL test set is 5 windows from one recording"
+    },
+    "classifier_candidates": {
+      "A1_decision_tree": {
+        "accuracy": 0.9087,
+        "macro_f1": 0.5384,
+        "loro_mean_accuracy": 0.7354,
+        "flash_bytes": 540,
+        "ram_bytes": 0
+      },
+      "A2_logistic_regression": {
+        "accuracy": 0.9696,
+        "macro_f1": 0.8218,
+        "loro_mean_accuracy": 0.5903,
+        "flash_bytes": 444,
+        "ram_bytes": 12
+      },
+      "A3_random_forest": {
+        "accuracy": 0.9739,
+        "macro_f1": 0.6372,
+        "loro_mean_accuracy": 0.8179,
+        "flash_bytes": 6648,
+        "ram_bytes": 0
+      },
+      "B1_mlp_float": {
+        "accuracy": 0.9696,
+        "macro_f1": 0.7264,
+        "loro_mean_accuracy": null,
+        "flash_bytes": 2572,
+        "ram_bytes": 220
+      },
+      "B1_mlp_int8": {
+        "accuracy": 0.9696,
+        "macro_f1": 0.7264,
+        "loro_mean_accuracy": 0.8136,
+        "flash_bytes": 3144,
+        "ram_bytes": 119
+      },
+      "B2_logmel_cnn_int8": {
+        "accuracy": 0.9435,
+        "macro_f1": 0.5956,
+        "loro_mean_accuracy": 0.692,
+        "flash_bytes": 8752,
+        "ram_bytes": 5812
+      }
+    },
+    "fusion_event_model": {
+      "model": "C1_fusion_decision_tree (31 nodes) over audio + SW-420 + PIR + cascade tamper",
+      "data": "synthetic visit events; audio drawn from out-of-fold real windows",
+      "tree_only_test": {
+        "accuracy": 0.892,
+        "macro_f1": 0.8846,
+        "per_class": {
+          "IDLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          },
+          "NORMAL_DISPENSE": {
+            "precision": 0.6196,
+            "recall": 0.912,
+            "f1": 0.7379,
+            "support": 125
+          },
+          "SHORT_VISIT": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          },
+          "VISIT_NO_DISPENSE": {
+            "precision": 0.9328,
+            "recall": 1.0,
+            "f1": 0.9653,
+            "support": 125
+          },
+          "ABNORMAL_MECHANICAL": {
+            "precision": 0.9649,
+            "recall": 0.44,
+            "f1": 0.6044,
+            "support": 125
+          },
+          "SUSPECTED_TAMPER": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          }
+        },
+        "confusion": [
+          [
+            125,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            114,
+            0,
+            9,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            125,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            125,
+            0,
+            0
+          ],
+          [
+            0,
+            70,
+            0,
+            0,
+            55,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            125
+          ]
+        ]
+      },
+      "deployed_cpp_with_rules_test": {
+        "accuracy": 0.8533,
+        "unknown_rate": 0.1253,
+        "confusion": {
+          "ABNORMAL_MECHANICAL": {
+            "ABNORMAL_MECHANICAL": 55,
+            "IDLE": 0,
+            "NORMAL_DISPENSE": 2,
+            "SHORT_VISIT": 0,
+            "SUSPECTED_TAMPER": 0,
+            "VISIT_NO_DISPENSE": 0
+          },
+          "IDLE": {
+            "ABNORMAL_MECHANICAL": 0,
+            "IDLE": 125,
+            "NORMAL_DISPENSE": 0,
+            "SHORT_VISIT": 0,
+            "SUSPECTED_TAMPER": 0,
+            "VISIT_NO_DISPENSE": 0
+          },
+          "NORMAL_DISPENSE": {
+            "ABNORMAL_MECHANICAL": 5,
+            "IDLE": 0,
+            "NORMAL_DISPENSE": 85,
+            "SHORT_VISIT": 0,
+            "SUSPECTED_TAMPER": 0,
+            "VISIT_NO_DISPENSE": 0
+          },
+          "SHORT_VISIT": {
+            "ABNORMAL_MECHANICAL": 0,
+            "IDLE": 0,
+            "NORMAL_DISPENSE": 0,
+            "SHORT_VISIT": 125,
+            "SUSPECTED_TAMPER": 0,
+            "VISIT_NO_DISPENSE": 0
+          },
+          "SUSPECTED_TAMPER": {
+            "ABNORMAL_MECHANICAL": 0,
+            "IDLE": 0,
+            "NORMAL_DISPENSE": 0,
+            "SHORT_VISIT": 0,
+            "SUSPECTED_TAMPER": 125,
+            "VISIT_NO_DISPENSE": 0
+          },
+          "UNKNOWN": {
+            "ABNORMAL_MECHANICAL": 65,
+            "IDLE": 0,
+            "NORMAL_DISPENSE": 29,
+            "SHORT_VISIT": 0,
+            "SUSPECTED_TAMPER": 0,
+            "VISIT_NO_DISPENSE": 0
+          },
+          "VISIT_NO_DISPENSE": {
+            "ABNORMAL_MECHANICAL": 0,
+            "IDLE": 0,
+            "NORMAL_DISPENSE": 9,
+            "SHORT_VISIT": 0,
+            "SUSPECTED_TAMPER": 0,
+            "VISIT_NO_DISPENSE": 125
+          }
+        }
+      },
+      "alternative_logreg_test": {
+        "accuracy": 0.808,
+        "macro_f1": 0.7605,
+        "per_class": {
+          "IDLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          },
+          "NORMAL_DISPENSE": {
+            "precision": 0.48,
+            "recall": 0.864,
+            "f1": 0.6171,
+            "support": 125
+          },
+          "SHORT_VISIT": {
+            "precision": 0.9259,
+            "recall": 1.0,
+            "f1": 0.9615,
+            "support": 125
+          },
+          "VISIT_NO_DISPENSE": {
+            "precision": 0.8741,
+            "recall": 0.944,
+            "f1": 0.9077,
+            "support": 125
+          },
+          "ABNORMAL_MECHANICAL": {
+            "precision": 1.0,
+            "recall": 0.04,
+            "f1": 0.07692,
+            "support": 125
+          },
+          "SUSPECTED_TAMPER": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          }
+        },
+        "confusion": [
+          [
+            125,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            108,
+            2,
+            15,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            125,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            7,
+            118,
+            0,
+            0
+          ],
+          [
+            0,
+            117,
+            1,
+            2,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            125
+          ]
+        ]
+      }
+    },
+    "firmware_parity_vs_python": {
+      "audio_argmax_agreement": "36/36",
+      "max_abs_feature_diff": 7.939e-06
+    }
+  }
+}

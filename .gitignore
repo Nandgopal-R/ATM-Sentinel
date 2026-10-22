@@ -25,3 +25,6 @@ htmlcov/
 # required to run the cascade evaluation, and document the held-out results.
 .playwright-mcp/
 *.db
+
+# host build of the audio module parity test
+ml/audio_tinyml/build/

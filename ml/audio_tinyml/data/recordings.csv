@@ -1,0 +1,6 @@
+recording_id,file,label,source_desc,split,notes
+a3368022,a3368022-alex_jauk-atm-cash-dispensing-mechanism-481755.mp3.mp3,DISPENSE,freesound alex_jauk ATM cash dispensing mechanism,train,real ATM dispenser
+a03e99cd,a03e99cd-out_cropped.mp3.mp3,DISPENSE,user clip out_cropped (ATM cash-out with ambient and beeps),test,held out for recording-level test; label assumed DISPENSE
+9b047533,9b047533-arunangshubanerjee-100-bank-notes-counted-on-loose-note-counter-no-errors-327647.mp3.mp3,DISPENSE,freesound note counter 100 notes no errors,train,proxy: note-transport sound not an ATM
+234d2aab,234d2aab-freesound_community-money-counter-95830.mp3.mp3,DISPENSE,freesound money counter,train,proxy: note-transport sound not an ATM
+e2384fe9,e2384fe9-not_working.mp3.mp3,ABNORMAL,user clip not_working,block,single recording: temporal block split (last 40% test after 0.5 s guard)

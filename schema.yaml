@@ -118,8 +118,32 @@ fields:
     # construction; do not model as independent Bernoulli draws.
 
 # Fields deliberately NOT in telemetry:
-#   cash / transaction counts -> come from the bank's transaction system,
-#     not from a sensor. The ESP32 can never produce them. Handled separately
-#     by the NN5-backed cash-availability model.
+#   transaction counts -> come from the bank's transaction system,
+#     not from a sensor. The ESP32 can never produce them.
 #   rssi / network state -> observable at the ESP8266 gateway, not the node.
 #     Network failure is a gateway rule, not a Stage-2 class.
+
+# ---------------------------------------------------------------------------
+# Audio + sensor-fusion event record (ml/audio_tinyml/, firmware ENABLE_AUDIO).
+# Published alongside telemetry, never instead of it: one JSON per interaction on
+# atm/<id>/event, plus an IDLE summary every 60 s. No raw audio leaves the node.
+# Produced by atm::formatEventJson(); tools/mqtt_to_sqlite.py stores it in table `event`.
+event_record:
+  topic: "atm/<atm_id>/event"
+  max_payload_bytes: 2048          # firmware MQTT buffer; observed 338-370 B (host scenario)
+  fields:
+    atm: {type: string, description: node ATM_ID}
+    t: {type: integer, unit: seconds_since_node_boot, description: event start; NOT an epoch, use the receive time}
+    dur: {type: integer, unit: s}
+    ev: {type: string, enum: [IDLE, NORMAL_DISPENSE, SHORT_VISIT, VISIT_NO_DISPENSE, ABNORMAL_MECHANICAL, SUSPECTED_TAMPER, UNKNOWN]}
+    final: {type: integer, enum: [0, 1], description: 0 = early tamper alert while the event is still running}
+    conf: {type: number, range: [0, 1]}
+    rule: {type: string, enum: [MODEL, TAMPER_PRIORITY, LOW_CONFIDENCE, DISPENSE_NO_PRESENCE, TAMPER_EARLY_ALERT, CONFIRMED]}
+    audio: {pd: mean P(dispense), pa: mean P(abnormal), pdmax: max P(dispense), pamax: max P(abnormal), df: dispense window fraction, af: abnormal window fraction}
+    vib: {rms: SW-420 counts/s RMS, pk: peak counts/s, var: variance}   # same unit as telemetry.vibration
+    pir: {frac: fraction of event seconds with PIR high, int: longest presence run in s}
+    tamper: {type: integer, description: cascade tamper flag or vib peak >= 75 during the event}
+    dispensed: {type: integer, description: 1 only for a confirmed NORMAL_DISPENSE; tamper-like vibration never counts}
+    roll: {disp: confirmed dispenses since boot, sv10m: short visits in 10 min, rsv: repeated short visits flag,
+           nd: visits since last dispense (short = 0.5), lastDisp: s since last dispense or -1}
+    mv: {type: string, description: audio model version}

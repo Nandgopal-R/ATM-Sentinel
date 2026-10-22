@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Find an ATM</title>
+<meta name="description" content="Live map of working ATMs across Coimbatore.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 26 26%27%3E%3Crect width=%2726%27 height=%2726%27 rx=%277%27 fill=%27%233b4cc0%27/%3E%3Crect x=%276%27 y=%278%27 width=%2714%27 height=%273%27 rx=%271.5%27 fill=%27white%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="mapapp">
+<div class="bar">
+  <a class="brand" href="/"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="var(--brand)"/><rect x="6" y="8" width="14" height="3" rx="1.5" fill="var(--brand-ink)"/><rect x="9" y="13" width="8" height="6" rx="1" fill="var(--brand-ink)" opacity=".6"/></svg>ATM Sentinel</a>
+  <div class="seg mode" role="radiogroup" aria-label="ATMs to show">
+    <label><input type="radio" name="mode" value="1" checked><span>Live + simulated</span></label>
+    <label><input type="radio" name="mode" value="0"><span>Live only</span></label>
+  </div>
+  <div class="end"><a href="/admin/login">Staff sign in</a></div>
+</div>
+<main>
+  <section class="finder" aria-labelledby="title">
+    <header>
+      <h1 id="title">Find a working ATM</h1>
+      <p>Live status of ATMs across Coimbatore, reported by each machine.</p>
+      <div class="controls">
+        <button class="btn" id="locate" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>Sort by distance</button>
+        <label class="check"><input type="checkbox" id="onlyok">Working only</label>
+      </div>
+    </header>
+    <p class="note" id="note" role="status"></p>
+    <p class="count" id="count" aria-live="polite">Loading ATMs…</p>
+    <ul class="places" id="places"></ul>
+    <footer>Status refreshes every 5 seconds.<span id="demonote"></span></footer>
+  </section>
+  <div id="map" role="region" aria-label="Map of ATMs"></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+// "Live + simulated" or "Live only": per viewer, remembered across both pages
+try { const m = localStorage.getItem("atm-mode"); if (m) document.querySelector(`input[name=mode][value="${m}"]`).checked = true; } catch {}
+const mode = () => document.querySelector("input[name=mode]:checked").value;
+const note = () => $("demonote").textContent = mode() === "1" ? " Some ATMs on this map are simulated for demonstration." : "";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const ICON = {
+  ok: '<path d="M2.5 6.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  down: '<path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  unk: '<path d="M4.3 4.4a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1M6 9.3v.1" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+};
+const glyph = s => `<span class="glyph" aria-hidden="true"><svg viewBox="0 0 12 12">${ICON[s]}</svg></span>`;
+const WORD = {ok: "Working", down: "Out of service", unk: "Status unknown"};
+const RANK = {ok: 0, unk: 1, down: 2};
+const ago = s => s == null ? "never" : s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+const km = (a, b) => { // haversine
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+};
+
+const map = L.map("map", {zoomControl: false}).setView([11.0168, 76.9758], 13);
+L.control.zoom({position: "bottomright"}).addTo(map);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  updateWhenZooming: false, keepBuffer: 4,  // fewer requests while zooming, more kept around the view
+}).on("tileerror", ({tile}) => {  // a failed tile stays blank forever otherwise; retry at 1, 2, 4 s
+  const n = +(tile.dataset.retry || 0);
+  if (n < 3) setTimeout(() => { tile.dataset.retry = n + 1; tile.src = tile.src; }, 1000 * 2 ** n);
+}).addTo(map);
+
+let atms = [], me = null, selected = null, sig = "", fitted = false;
+const markers = {};
+
+const status = a => a.status === "unknown" ? "unk" : a.status;
+const pinIcon = (a, on) => L.divIcon({
+  className: "pin-anchor", iconSize: [0, 0],
+  html: `<div class="pin st-${status(a)}${on ? " on" : ""}">${glyph(status(a))}${esc(a.name)}</div>`,
+});
+function popup(a) {
+  const s = status(a);
+  return `<div class="pop"><h2>${esc(a.name)}</h2><p class="street">${esc(a.street)}</p>
+    <dl class="st-${s}"><dt>Status</dt><dd>${glyph(s)}<span class="word">${WORD[s]}${s === "down" && a.cash_ok === false ? " · last cash withdrawal failed" : ""}</span></dd>
+    <dt>Last report</dt><dd>${ago(a.seen_ago)}</dd>
+    <dt>Last cash withdrawal</dt><dd>${a.cash_ago == null ? "None recorded yet"
+      : a.cash_ok ? ago(a.cash_ago) : `<span class="cashfail">Failed · ${ago(a.cash_ago)}</span>`}</dd>
+    ${me ? `<dt>Distance</dt><dd>${km(me, a).toFixed(1)} km</dd>` : ""}</dl>
+    <a class="btn primary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${a.lat},${a.lng}">Get directions</a></div>`;
+}
+
+function mark() {
+  for (const x of atms) markers[x.atm_id].setIcon(pinIcon(x, x.atm_id === selected));
+  document.querySelectorAll(".place").forEach(b => b.setAttribute("aria-current", b.dataset.id === selected));
+}
+function select(id, pan) {
+  selected = id;
+  const a = atms.find(x => x.atm_id === id);
+  mark();
+  if (!pan) return;  // a pin click: Leaflet opens its own popup, opening it here too would toggle it shut
+  map.flyTo([a.lat, a.lng], Math.max(map.getZoom(), 15), {duration: matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : .6});
+  markers[id].openPopup();
+}
+
+function render() {
+  const only = $("onlyok").checked;
+  const list = atms.filter(a => !only || a.status === "ok")
+    .sort((a, b) => me ? km(me, a) - km(me, b) : RANK[status(a)] - RANK[status(b)] || a.name.localeCompare(b.name));
+  const ok = atms.filter(a => a.status === "ok").length;
+  $("count").innerHTML = `<b>${ok} of ${atms.length}</b> ATM${atms.length === 1 ? "" : "s"} working right now`;
+  $("places").innerHTML = list.map(a => {
+    const s = status(a);
+    return `<li><button class="place st-${s}" type="button" data-id="${esc(a.atm_id)}" aria-current="${a.atm_id === selected}">
+      ${glyph(s)}<span class="name">${esc(a.name)}</span><span class="dist">${me ? km(me, a).toFixed(1) + " km" : ""}</span>
+      <span class="street">${esc(a.street)}</span><span class="meta"><span class="word">${WORD[s]}</span>${a.cash_ok === false ? ` · <span class="cashfail">Last withdrawal failed</span>` : ""}</span></button></li>`;
+  }).join("") || `<li class="empty">No ATM is working right now. Check back in a few minutes.</li>`;
+  for (const id in markers) if (!atms.some(a => a.atm_id === id)) { markers[id].remove(); delete markers[id]; } // mode switched to live only
+  for (const a of atms) {
+    const m = markers[a.atm_id] ||= L.marker([a.lat, a.lng], {keyboard: false}).addTo(map).on("click", () => select(a.atm_id, false));
+    m.setIcon(pinIcon(a, a.atm_id === selected));
+    m.bindPopup(() => popup(atms.find(x => x.atm_id === a.atm_id)), {offset: [0, -38], maxWidth: 280});
+    m.getElement().style.display = only && a.status !== "ok" ? "none" : "";
+  }
+}
+
+async function tick() {
+  let d;
+  try { d = await (await fetch(`/api/atms?demo=${mode()}`)).json(); } catch { $("count").textContent = "Can't reach the server. Retrying…"; return; }
+  atms = d.atms;
+  // rebuild the list only when something a customer can see changed, so keyboard focus survives polling
+  const next = JSON.stringify(atms.map(a => [a.atm_id, a.status, a.name, a.cash_ok]));
+  if (next !== sig) { sig = next; render(); }
+  if (!fitted && atms.length) { fitted = true; map.fitBounds(atms.map(a => [a.lat, a.lng]), {padding: [60, 60], maxZoom: 14}); }
+}
+
+$("places").addEventListener("click", e => { const b = e.target.closest(".place"); if (b) select(b.dataset.id, true); });
+$("onlyok").addEventListener("change", render);
+document.querySelectorAll("input[name=mode]").forEach(r => r.addEventListener("change", () => {
+  try { localStorage.setItem("atm-mode", r.value); } catch {}
+  fitted = false; note(); tick();
+}));
+map.on("popupclose", e => { if (markers[selected]?.getPopup() === e.popup) { selected = null; mark(); } });
+$("locate").addEventListener("click", () => {
+  if (!navigator.geolocation) { $("note").textContent = "This browser can't share your location."; return; }
+  $("note").textContent = "";
+  navigator.geolocation.getCurrentPosition(p => {
+    me = {lat: p.coords.latitude, lng: p.coords.longitude};
+    L.marker([me.lat, me.lng], {icon: L.divIcon({className: "pin-anchor", html: '<div class="you" style="transform:translate(-50%,-50%)"></div>', iconSize: [0, 0]}), keyboard: false, interactive: false}).addTo(map);
+    const near = atms.filter(a => a.status === "ok").sort((a, b) => km(me, a) - km(me, b)).slice(0, 2);
+    map.fitBounds([[me.lat, me.lng], ...near.map(a => [a.lat, a.lng])], {padding: [60, 60], maxZoom: 15});
+    $("locate").lastChild.textContent = "Sorted by distance";
+    render();
+  }, () => { $("note").textContent = "Location is blocked. Allow it in your browser settings to sort by distance."; }, {timeout: 10000});
+});
+note(); tick(); setInterval(tick, 5000);
+</script>
+</body>
+</html>

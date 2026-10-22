@@ -1,0 +1,149 @@
+{
+  "recordings": [
+    {
+      "recording": "a3368022",
+      "windows": 11,
+      "max_abs_feat_diff": 2.8301732086788434e-06,
+      "worst_feature": "mfcc0_mean",
+      "max_rel_feat_diff": 3.864194895898694e-05,
+      "max_prob_diff_engine": 0.00390625,
+      "argmax_agree_vs_python": 11
+    },
+    {
+      "recording": "a03e99cd",
+      "windows": 9,
+      "max_abs_feat_diff": 1.4166339710186548e-06,
+      "worst_feature": "rms_db_mean",
+      "max_rel_feat_diff": 1.3576819993238874e-05,
+      "max_prob_diff_engine": 0.00390625,
+      "argmax_agree_vs_python": 9
+    },
+    {
+      "recording": "9b047533",
+      "windows": 7,
+      "max_abs_feat_diff": 7.939198024831118e-06,
+      "worst_feature": "flatness_std",
+      "max_rel_feat_diff": 3.141267339277184e-05,
+      "max_prob_diff_engine": 0.00390625,
+      "argmax_agree_vs_python": 7
+    },
+    {
+      "recording": "234d2aab",
+      "windows": 4,
+      "max_abs_feat_diff": 3.244494013898702e-06,
+      "worst_feature": "mfcc0_std",
+      "max_rel_feat_diff": 1.6227325520518038e-05,
+      "max_prob_diff_engine": 0.00390625,
+      "argmax_agree_vs_python": 4
+    },
+    {
+      "recording": "e2384fe9",
+      "windows": 5,
+      "max_abs_feat_diff": 4.074057281755472e-06,
+      "worst_feature": "mfcc0_std",
+      "max_rel_feat_diff": 2.2151175408918193e-05,
+      "max_prob_diff_engine": 0.0038532500000000303,
+      "argmax_agree_vs_python": 5
+    }
+  ],
+  "audio_argmax_agree": 36,
+  "audio_windows": 36,
+  "per_feature_max_abs_diff": {
+    "mfcc0_mean": 2.8301732086788434e-06,
+    "mfcc1_mean": 5.794193498331879e-07,
+    "mfcc2_mean": 5.736755031016116e-07,
+    "mfcc3_mean": 8.067277192935762e-07,
+    "mfcc4_mean": 5.49257706095041e-07,
+    "mfcc5_mean": 2.0396854194526526e-07,
+    "mfcc6_mean": 3.5958996802420984e-07,
+    "mfcc7_mean": 2.2440899061226816e-07,
+    "mfcc8_mean": 3.993979702521244e-07,
+    "mfcc9_mean": 2.3565442996975605e-07,
+    "mfcc10_mean": 1.7314603728557643e-07,
+    "mfcc11_mean": 1.5203784908823792e-07,
+    "mfcc12_mean": 5.764369614483233e-07,
+    "rms_db_mean": 2.603267297729417e-06,
+    "zcr_mean": 1.3199861093049492e-08,
+    "centroid_mean": 4.4403568766338e-08,
+    "rolloff_mean": 2.1354838786180608e-08,
+    "flatness_mean": 3.3106288270245976e-06,
+    "mfcc0_std": 5.454024162077076e-06,
+    "mfcc1_std": 9.50574312152952e-07,
+    "mfcc2_std": 4.5792835057234527e-07,
+    "mfcc3_std": 8.429266140641545e-07,
+    "mfcc4_std": 2.892934901632671e-07,
+    "mfcc5_std": 3.5247160234952446e-07,
+    "mfcc6_std": 2.1248080905866829e-07,
+    "mfcc7_std": 3.4865130882355544e-07,
+    "mfcc8_std": 2.683881579201852e-07,
+    "mfcc9_std": 3.0895300695554795e-07,
+    "mfcc10_std": 3.318867900503619e-07,
+    "mfcc11_std": 4.3826494877663436e-07,
+    "mfcc12_std": 2.6185644630416505e-07,
+    "rms_db_std": 1.8249015880655861e-06,
+    "zcr_std": 4.625336141872438e-09,
+    "centroid_std": 7.108478293493814e-08,
+    "rolloff_std": 1.427342516402419e-08,
+    "flatness_std": 7.939198024831118e-06
+  },
+  "fusion_cpp_test_accuracy": 0.8533333333333334,
+  "fusion_cpp_unknown_rate": 0.12533333333333332,
+  "fusion_confusion": {
+    "ABNORMAL_MECHANICAL": {
+      "ABNORMAL_MECHANICAL": 55,
+      "IDLE": 0,
+      "NORMAL_DISPENSE": 2,
+      "SHORT_VISIT": 0,
+      "SUSPECTED_TAMPER": 0,
+      "VISIT_NO_DISPENSE": 0
+    },
+    "IDLE": {
+      "ABNORMAL_MECHANICAL": 0,
+      "IDLE": 125,
+      "NORMAL_DISPENSE": 0,
+      "SHORT_VISIT": 0,
+      "SUSPECTED_TAMPER": 0,
+      "VISIT_NO_DISPENSE": 0
+    },
+    "NORMAL_DISPENSE": {
+      "ABNORMAL_MECHANICAL": 5,
+      "IDLE": 0,
+      "NORMAL_DISPENSE": 85,
+      "SHORT_VISIT": 0,
+      "SUSPECTED_TAMPER": 0,
+      "VISIT_NO_DISPENSE": 0
+    },
+    "SHORT_VISIT": {
+      "ABNORMAL_MECHANICAL": 0,
+      "IDLE": 0,
+      "NORMAL_DISPENSE": 0,
+      "SHORT_VISIT": 125,
+      "SUSPECTED_TAMPER": 0,
+      "VISIT_NO_DISPENSE": 0
+    },
+    "SUSPECTED_TAMPER": {
+      "ABNORMAL_MECHANICAL": 0,
+      "IDLE": 0,
+      "NORMAL_DISPENSE": 0,
+      "SHORT_VISIT": 0,
+      "SUSPECTED_TAMPER": 125,
+      "VISIT_NO_DISPENSE": 0
+    },
+    "UNKNOWN": {
+      "ABNORMAL_MECHANICAL": 65,
+      "IDLE": 0,
+      "NORMAL_DISPENSE": 29,
+      "SHORT_VISIT": 0,
+      "SUSPECTED_TAMPER": 0,
+      "VISIT_NO_DISPENSE": 0
+    },
+    "VISIT_NO_DISPENSE": {
+      "ABNORMAL_MECHANICAL": 0,
+      "IDLE": 0,
+      "NORMAL_DISPENSE": 9,
+      "SHORT_VISIT": 0,
+      "SUSPECTED_TAMPER": 0,
+      "VISIT_NO_DISPENSE": 125
+    }
+  }
+}

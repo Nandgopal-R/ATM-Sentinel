@@ -1,0 +1,589 @@
+{
+  "results": {
+    "A1_decision_tree": {
+      "metrics": {
+        "accuracy": 0.908695652173913,
+        "macro_f1": 0.5383761892873984,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 0.9402985074626866,
+            "recall": 0.9792746113989638,
+            "f1": 0.9593908629441624,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 0.6896551724137931,
+            "recall": 0.625,
+            "f1": 0.6557377049180327,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            189,
+            4,
+            0
+          ],
+          [
+            12,
+            20,
+            0
+          ],
+          [
+            0,
+            5,
+            0
+          ]
+        ]
+      },
+      "flash_bytes": 540,
+      "ram_bytes": 0,
+      "notes": "max_depth=6",
+      "loro_mean_acc": 0.7354312354312355,
+      "selection_score": 0.6369037123593169
+    },
+    "A2_logistic_regression": {
+      "metrics": {
+        "accuracy": 0.9695652173913043,
+        "macro_f1": 0.8218094255245959,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 1.0,
+            "recall": 0.78125,
+            "f1": 0.8771929824561403,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.4166666666666667,
+            "recall": 1.0,
+            "f1": 0.5882352941176471,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            193,
+            0,
+            0
+          ],
+          [
+            0,
+            25,
+            7
+          ],
+          [
+            0,
+            0,
+            5
+          ]
+        ]
+      },
+      "flash_bytes": 444,
+      "ram_bytes": 12,
+      "notes": "float32 weights",
+      "loro_mean_acc": 0.5903445512820513,
+      "selection_score": 0.7060769884033236
+    },
+    "A3_random_forest": {
+      "metrics": {
+        "accuracy": 0.9739130434782609,
+        "macro_f1": 0.6372294372294373,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 1.0,
+            "recall": 0.9948186528497409,
+            "f1": 0.9974025974025974,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 0.8421052631578947,
+            "recall": 1.0,
+            "f1": 0.9142857142857143,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            192,
+            1,
+            0
+          ],
+          [
+            0,
+            32,
+            0
+          ],
+          [
+            0,
+            5,
+            0
+          ]
+        ]
+      },
+      "flash_bytes": 6648,
+      "ram_bytes": 0,
+      "notes": "10 trees, depth 6",
+      "loro_mean_acc": 0.8179268648018648,
+      "selection_score": 0.727578151015651
+    },
+    "B1_mlp_float": {
+      "metrics": {
+        "accuracy": 0.9695652173913043,
+        "macro_f1": 0.7263522256728777,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 1.0,
+            "recall": 0.9896373056994818,
+            "f1": 0.9947916666666666,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 0.8378378378378378,
+            "recall": 0.96875,
+            "f1": 0.8985507246376812,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.5,
+            "recall": 0.2,
+            "f1": 0.2857142857142857,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            191,
+            2,
+            0
+          ],
+          [
+            0,
+            31,
+            1
+          ],
+          [
+            0,
+            4,
+            1
+          ]
+        ]
+      },
+      "flash_bytes": 2572,
+      "ram_bytes": 220,
+      "notes": "36-16-3 float32 reference"
+    },
+    "B1_mlp_int8": {
+      "metrics": {
+        "accuracy": 0.9695652173913043,
+        "macro_f1": 0.7263522256728777,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 1.0,
+            "recall": 0.9896373056994818,
+            "f1": 0.9947916666666666,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 0.8378378378378378,
+            "recall": 0.96875,
+            "f1": 0.8985507246376812,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.5,
+            "recall": 0.2,
+            "f1": 0.2857142857142857,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            191,
+            2,
+            0
+          ],
+          [
+            0,
+            31,
+            1
+          ],
+          [
+            0,
+            4,
+            1
+          ]
+        ]
+      },
+      "flash_bytes": 3144,
+      "ram_bytes": 119,
+      "notes": "36-16-3 full-integer INT8; flash = .tflite size",
+      "loro_mean_acc": 0.8136108682983683,
+      "selection_score": 0.769981546985623
+    },
+    "B2_logmel_cnn_int8": {
+      "metrics": {
+        "accuracy": 0.9434782608695652,
+        "macro_f1": 0.5956284153005464,
+        "per_class": {
+          "BACKGROUND": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 193
+          },
+          "DISPENSE": {
+            "precision": 0.8275862068965517,
+            "recall": 0.75,
+            "f1": 0.7868852459016393,
+            "support": 32
+          },
+          "ABNORMAL": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 5
+          }
+        },
+        "confusion": [
+          [
+            193,
+            0,
+            0
+          ],
+          [
+            0,
+            24,
+            8
+          ],
+          [
+            0,
+            5,
+            0
+          ]
+        ]
+      },
+      "flash_bytes": 8752,
+      "ram_bytes": 5812,
+      "notes": "Conv1D(12)+SepConv1D(16) on 31x26 log-Mel patch; RAM incl. float patch buffer + rough TFLM arena",
+      "loro_mean_acc": 0.6919616841491841,
+      "selection_score": 0.6437950497248652
+    }
+  },
+  "fusion": {
+    "C1_fusion_decision_tree": {
+      "metrics": {
+        "accuracy": 0.892,
+        "macro_f1": 0.8845851078860787,
+        "per_class": {
+          "IDLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          },
+          "NORMAL_DISPENSE": {
+            "precision": 0.6195652173913043,
+            "recall": 0.912,
+            "f1": 0.7378640776699029,
+            "support": 125
+          },
+          "SHORT_VISIT": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          },
+          "VISIT_NO_DISPENSE": {
+            "precision": 0.9328358208955224,
+            "recall": 1.0,
+            "f1": 0.9652509652509652,
+            "support": 125
+          },
+          "ABNORMAL_MECHANICAL": {
+            "precision": 0.9649122807017544,
+            "recall": 0.44,
+            "f1": 0.6043956043956044,
+            "support": 125
+          },
+          "SUSPECTED_TAMPER": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          }
+        },
+        "confusion": [
+          [
+            125,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            114,
+            0,
+            9,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            125,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            125,
+            0,
+            0
+          ],
+          [
+            0,
+            70,
+            0,
+            0,
+            55,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            125
+          ]
+        ]
+      },
+      "flash_bytes": 465,
+      "nodes": 31
+    },
+    "C2_fusion_logreg": {
+      "metrics": {
+        "accuracy": 0.808,
+        "macro_f1": 0.7605494505494507,
+        "per_class": {
+          "IDLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          },
+          "NORMAL_DISPENSE": {
+            "precision": 0.48,
+            "recall": 0.864,
+            "f1": 0.6171428571428571,
+            "support": 125
+          },
+          "SHORT_VISIT": {
+            "precision": 0.9259259259259259,
+            "recall": 1.0,
+            "f1": 0.9615384615384616,
+            "support": 125
+          },
+          "VISIT_NO_DISPENSE": {
+            "precision": 0.8740740740740741,
+            "recall": 0.944,
+            "f1": 0.9076923076923077,
+            "support": 125
+          },
+          "ABNORMAL_MECHANICAL": {
+            "precision": 1.0,
+            "recall": 0.04,
+            "f1": 0.07692307692307693,
+            "support": 125
+          },
+          "SUSPECTED_TAMPER": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 125
+          }
+        },
+        "confusion": [
+          [
+            125,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            108,
+            2,
+            15,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            125,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            7,
+            118,
+            0,
+            0
+          ],
+          [
+            0,
+            117,
+            1,
+            2,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            125
+          ]
+        ]
+      },
+      "flash_bytes": 440
+    }
+  },
+  "loro": [
+    {
+      "held_out": "234d2aab",
+      "label": "DISPENSE",
+      "n_windows": 16,
+      "A2_logistic_regression": 0.875,
+      "A1_decision_tree": 0.875,
+      "A3_random_forest": 0.8125,
+      "B1_mlp_int8": 0.8125,
+      "B2_logmel_cnn_int8": 0.8125
+    },
+    {
+      "held_out": "9b047533",
+      "label": "DISPENSE",
+      "n_windows": 22,
+      "A2_logistic_regression": 0.5,
+      "A1_decision_tree": 0.9545454545454546,
+      "A3_random_forest": 0.8181818181818182,
+      "B1_mlp_int8": 0.9090909090909091,
+      "B2_logmel_cnn_int8": 0.9545454545454546
+    },
+    {
+      "held_out": "a03e99cd",
+      "label": "DISPENSE",
+      "n_windows": 32,
+      "A2_logistic_regression": 0.78125,
+      "A1_decision_tree": 0.625,
+      "A3_random_forest": 1.0,
+      "B1_mlp_int8": 0.96875,
+      "B2_logmel_cnn_int8": 0.71875
+    },
+    {
+      "held_out": "a3368022",
+      "label": "DISPENSE",
+      "n_windows": 39,
+      "A2_logistic_regression": 0.20512820512820512,
+      "A1_decision_tree": 0.48717948717948717,
+      "A3_random_forest": 0.6410256410256411,
+      "B1_mlp_int8": 0.5641025641025641,
+      "B2_logmel_cnn_int8": 0.28205128205128205
+    }
+  ],
+  "selected": "B1_mlp_int8",
+  "shortlist": [
+    "B1_mlp_int8"
+  ],
+  "counts": [
+    {
+      "split": "test",
+      "label": "ABNORMAL",
+      "provenance": "original",
+      "n": 5
+    },
+    {
+      "split": "test",
+      "label": "BACKGROUND",
+      "provenance": "synthetic",
+      "n": 193
+    },
+    {
+      "split": "test",
+      "label": "DISPENSE",
+      "provenance": "original",
+      "n": 32
+    },
+    {
+      "split": "train",
+      "label": "ABNORMAL",
+      "provenance": "original",
+      "n": 7
+    },
+    {
+      "split": "train",
+      "label": "ABNORMAL",
+      "provenance": "synthetic",
+      "n": 490
+    },
+    {
+      "split": "train",
+      "label": "BACKGROUND",
+      "provenance": "original",
+      "n": 3
+    },
+    {
+      "split": "train",
+      "label": "BACKGROUND",
+      "provenance": "synthetic",
+      "n": 583
+    },
+    {
+      "split": "train",
+      "label": "DISPENSE",
+      "provenance": "original",
+      "n": 74
+    },
+    {
+      "split": "train",
+      "label": "DISPENSE",
+      "provenance": "synthetic",
+      "n": 914
+    }
+  ],
+  "mlp_float_vs_int8_agreement": 1.0,
+  "fusion_tree_nodes": 31,
+  "oof_audio_acc": 0.6962819893771125,
+  "seconds": 200.09626865386963
+}

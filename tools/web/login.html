@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Staff sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 26 26%27%3E%3Crect width=%2726%27 height=%2726%27 rx=%277%27 fill=%27%233b4cc0%27/%3E%3Crect x=%276%27 y=%278%27 width=%2714%27 height=%273%27 rx=%271.5%27 fill=%27white%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="signin">
+<div class="bar">
+  <a class="brand" href="/"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="var(--brand)"/><rect x="6" y="8" width="14" height="3" rx="1.5" fill="var(--brand-ink)"/><rect x="9" y="13" width="8" height="6" rx="1" fill="var(--brand-ink)" opacity=".6"/></svg>ATM Sentinel <small>Operations</small></a>
+</div>
+<main>
+  <form method="post" action="/admin/login">
+    <h1>Staff sign in</h1>
+    <p>Sign in to see faults, sensor readings and model output for every ATM.</p>
+    {% if error %}<p class="error" role="alert">That username and password don't match. Check them and try again.</p>{% endif %}
+    <div class="field"><label for="u">Username</label><input id="u" name="username" autocomplete="username" required value="{{ username or '' }}" {% if not error %}autofocus{% endif %}></div>
+    <div class="field"><label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required {% if error %}autofocus{% endif %}></div>
+    <button class="btn primary" type="submit">Sign in</button>
+    <a class="back" href="/">Back to the ATM map</a>
+  </form>
+</main>
+</body>
+</html>

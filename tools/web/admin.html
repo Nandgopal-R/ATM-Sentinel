@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATM Operations</title>
+<meta name="description" content="Fault status, sensor telemetry and model output for every ATM.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 26 26%27%3E%3Crect width=%2726%27 height=%2726%27 rx=%277%27 fill=%27%233b4cc0%27/%3E%3Crect x=%276%27 y=%278%27 width=%2714%27 height=%273%27 rx=%271.5%27 fill=%27white%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="console">
+<div class="bar">
+  <a class="brand" href="/admin"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="var(--brand)"/><rect x="6" y="8" width="14" height="3" rx="1.5" fill="var(--brand-ink)"/><rect x="9" y="13" width="8" height="6" rx="1" fill="var(--brand-ink)" opacity=".6"/></svg>ATM Sentinel <small>Operations</small></a>
+  <div class="seg mode" role="radiogroup" aria-label="ATMs to show">
+    <label><input type="radio" name="mode" value="1" checked><span>Live + simulated</span></label>
+    <label><input type="radio" name="mode" value="0"><span>Live only</span></label>
+  </div>
+  <div class="end">
+    <a href="/" target="_blank" rel="noopener">Customer map</a>
+    <span class="who" id="who"></span>
+    <form method="post" action="/admin/logout"><button class="btn" type="submit">Sign out</button></form>
+  </div>
+</div>
+<main>
+  <section class="fleet" aria-labelledby="fleet-title">
+    <header>
+      <h1 id="fleet-title">Fleet</h1>
+      <p id="summary" aria-live="polite">Loading…</p>
+      <div class="seg" role="radiogroup" aria-label="Filter ATMs">
+        <label><input type="radio" name="f" value="all" checked><span>All ATMs</span></label>
+        <label><input type="radio" name="f" value="attn"><span>Needs attention</span></label>
+      </div>
+    </header>
+    <ul class="units" id="units"></ul>
+  </section>
+  <section class="detail" id="detail" aria-live="off"><p class="empty">Select an ATM to see its details.</p></section>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+const $ = id => document.getElementById(id);
+// "Live + simulated" or "Live only": per viewer, remembered across both pages
+try { const m = localStorage.getItem("atm-mode"); if (m) document.querySelector(`input[name=mode][value="${m}"]`).checked = true; } catch {}
+const mode = () => document.querySelector("input[name=mode]:checked").value;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const ICON = {
+  ok: '<path d="M2.5 6.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  down: '<path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  warn: '<path d="M6 2.8v4M6 9.2v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  unk: '<path d="M4.3 4.4a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1M6 9.3v.1" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+};
+const glyph = s => `<span class="glyph" aria-hidden="true"><svg viewBox="0 0 12 12">${ICON[s]}</svg></span>`;
+const NAME = {NORMAL: "Normal", COOLING_FAILURE: "Cooling failure", HIGH_HUMIDITY: "High humidity", POWER_FAILURE: "Power failure", TAMPER: "Tamper detected", SENSOR_FAULT: "Sensor fault"};
+const PUBLIC = {ok: ["ok", "Working"], down: ["down", "Out of service"], unknown: ["unk", "Status unknown"]};
+const RANK = {down: 0, warn: 1, unk: 2, ok: 3};
+const ago = s => s == null ? "never" : s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`;
+const fmt = (v, d) => v == null ? "null" : Number(v).toFixed(d);
+const tsf = t => t > 1e9 ? new Date(t * 1000).toLocaleTimeString() : `+${t}s`;
+let OFF = 30, THR = 0.7615, fleet = [], selected = decodeURIComponent(location.hash.slice(1)) || null, sig = "", live = null;
+
+function sev(a) { // admin severity: what needs a technician, not what the customer sees
+  if (a.seen_ago == null || a.seen_ago > OFF) return ["unk", "Not reporting"];
+  if (a.cls == null) return ["unk", "Waiting for first inference"];
+  const failed = a.cash_ok === false && a.status === "down";
+  if (a.cls === "NORMAL") return failed ? ["down", "Last cash withdrawal failed"] : ["ok", "Normal"];
+  if (a.overridden) return failed ? ["down", "Last cash withdrawal failed"] : ["ok", `Marked working (model: ${NAME[a.cls] || a.cls})`];
+  if (a.alert && a.cls !== "SENSOR_FAULT") return ["down", NAME[a.cls] || a.cls];
+  return ["warn", (NAME[a.cls] || a.cls) + (a.alert ? "" : ", not yet confirmed")];
+}
+
+function renderFleet() {
+  const attn = document.querySelector("input[name=f]:checked").value === "attn";
+  const list = fleet.map(a => [a, sev(a)]).filter(([, [s]]) => !attn || s !== "ok")
+    .sort(([a, [s]], [b, [t]]) => RANK[s] - RANK[t] || a.atm_id.localeCompare(b.atm_id));
+  $("units").innerHTML = list.map(([a, [s, word]]) => `<li><button class="unit st-${s}" type="button" data-id="${esc(a.atm_id)}" aria-current="${a.atm_id === selected}">
+    ${glyph(s)}<span class="name">${esc(a.name)}<span class="id">${esc(a.atm_id)}</span></span><span class="ago" data-ago="${esc(a.atm_id)}">${ago(a.seen_ago)}</span>
+    <span class="word">${esc(word)}</span></button></li>`).join("") || `<li class="empty">Nothing needs attention.</li>`;
+}
+
+function summary() {
+  const c = {down: 0, warn: 0, unk: 0, ok: 0};
+  fleet.forEach(a => c[sev(a)[0]]++);
+  const parts = [c.down && `${c.down} out of service`, c.warn && `${c.warn} to watch`, c.unk && `${c.unk} not reporting`].filter(Boolean);
+  $("summary").textContent = `${fleet.length} ATM${fleet.length === 1 ? "" : "s"}. ` + (parts.length ? parts.join(", ") + "." : "All working normally.");
+}
+
+// ---------- detail ----------
+const CH = [["temperature", "Temperature", "°C", 2], ["humidity", "Humidity", "% RH", 1], ["pressure", "Pressure", "hPa", 1], ["light", "Light", "lux", 1], ["voltage", "Voltage", "V", 1], ["current", "Current", "A", 3], ["vibration", "Vibration", "edges/s", 0]];
+
+function facts(a) {
+  const [s, word] = sev(a), [ps, pword] = PUBLIC[a.status], p = a.p_abnormal;
+  return `<div class="panel"><dl class="facts">
+    <div class="fact st-${s}"><dt>Condition</dt><dd class="small">${glyph(s)}<span class="word">${esc(word)}</span></dd></div>
+    <div class="fact"><dt>Abnormal probability</dt><dd>${p == null ? "n/a" : p.toFixed(3)}</dd>
+      <div class="meter" aria-hidden="true"><i style="width:${(p || 0) * 100}%"></i><b style="left:${THR * 100}%"></b></div><p>Stage 1, alert threshold ${THR.toFixed(3)}</p></div>
+    <div class="fact"><dt>Abnormal windows in a row</dt><dd>${a.persist ?? 0}</dd><p>${a.alert ? "Alert raised" : "Alert after 2 in a row"}</p></div>
+    <div class="fact st-${ps}"><dt>Customers see</dt><dd class="small">${glyph(ps)}<span class="word">${pword}</span></dd>
+      ${a.cash_ok === false && a.status === "down" ? `<p>Last cash withdrawal failed</p>` : ""}</div>
+  </dl>${s !== "ok" && s !== "unk" || a.status === "down" ? `<div class="override"><button class="btn primary" type="button" data-override="${esc(a.atm_id)}">Mark as working</button>
+    <p>Use once the fault has been fixed. Clears the current alert and any failed withdrawal; a new fault raises a fresh alert.</p></div>`
+  : a.override_at ? `<p class="override k">Marked working by an admin at ${tsf(a.override_at)}.</p>` : ""}${a.demo ? `<p class="callout">Demo unit. Its history is simulated to show how this fault looks; only Amrita sends live data.</p>` : ""}</div>`;
+}
+
+// fixed 300 s axis, newest sample at "now": a node that booted 2 min ago fills only the right side
+const SPAN = 300, CW = 250, slot = (i, n) => (i + SPAN - n) / (SPAN - 1);  // CW: chart viewBox width, ~1:1 at 4 across
+function lineChart(name, title, unit, dec, data) { // single series: the heading names it, no legend
+  const W = CW, H = 110, L = 40, R = 8, T = 18, B = 18, vals = data.map(r => r[name]);
+  const ok = vals.filter(v => v != null), n = data.length;
+  if (!ok.length) return `<div class="chart"><h4>${title}</h4><div class="empty">No readings in this window</div></div>`;
+  let lo = Math.min(...ok), hi = Math.max(...ok); if (hi - lo < 1e-9) { hi = lo + 1; lo = lo - 1; }
+  const x = i => L + slot(i, n) * (W - L - R), y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  let path = "", cur = ""; vals.forEach((v, i) => { if (v == null) { if (cur) path += cur; cur = ""; return; } cur += (cur ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1) + " "; }); path += cur;
+  const last = ok[ok.length - 1], nulls = vals.filter(v => v == null).length;
+  return `<div class="chart" data-ch="${name}"><h4>${title}<span>${fmt(last, dec)} ${unit}</span></h4>
+  <svg class="plot" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-n="${n}" role="img" aria-label="${title}, last ${n} seconds">
+   <line class="gl" x1="${L}" x2="${W - R}" y1="${y(hi)}" y2="${y(hi)}"/><line class="gl" x1="${L}" x2="${W - R}" y1="${y((hi + lo) / 2)}" y2="${y((hi + lo) / 2)}"/>
+   <line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>
+   <text x="${L - 4}" y="${y(hi) + 4}" text-anchor="end">${fmt(hi, dec)}</text><text x="${L - 4}" y="${y(lo) + 4}" text-anchor="end">${fmt(lo, dec)}</text>
+   <text x="${L}" y="${H - 4}">-${SPAN}s</text><text x="${W - R}" y="${H - 4}" text-anchor="end">now</text>
+   <path class="ln" d="${path}"/><line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="var(--ink2)" stroke-dasharray="2 2" style="display:none"/>
+   <circle r="4" fill="var(--series)" stroke="var(--surface)" stroke-width="2" style="display:none"/>
+  </svg>${nulls ? `<div class="k">${nulls} missing sample${nulls > 1 ? "s" : ""}</div>` : ""}</div>`;
+}
+function motionChart(tel) { // binary: a strip, not a line
+  const W = CW, H = 110, L = 40, R = 8, n = tel.length, on = tel.filter(r => r.motion).length;
+  const x = i => L + slot(i, n) * (W - L - R);
+  return `<div class="chart"><h4>Motion<span>${n ? Math.round(100 * on / n) : 0}% of the time</span></h4><svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Motion sensor, last ${n} seconds">
+  <rect x="${L}" y="40" width="${W - L - R}" height="30" fill="var(--grid)" rx="3"/>${tel.map((r, i) => r.motion ? `<rect x="${x(i)}" y="40" width="${(W - L - R) / 300 + 0.5}" height="30" fill="var(--series)"/>` : "").join("")}
+  <text x="${L - 4}" y="59" text-anchor="end">PIR</text><text x="${L}" y="${H - 4}">-${SPAN}s</text><text x="${W - R}" y="${H - 4}" text-anchor="end">now</text></svg></div>`;
+}
+function hbar(items, signed) { // horizontal bars, thin, rounded data-end
+  const W = 320, rowH = 22, L = signed ? 130 : 120, R = 44, H = items.length * rowH + 4, max = signed ? 8 : 1;
+  const trackL = signed ? L + 34 : L; // gap so a maxed negative bar's value label can't collide with the row label
+  const mid = signed ? trackL + (W - trackL - R) / 2 : trackL, scale = (W - trackL - R) / (signed ? 2 * max : max);
+  return `<svg class="plot" viewBox="0 0 ${W} ${H}">${signed ? `<line class="ax" x1="${mid}" x2="${mid}" y1="0" y2="${H}"/>` : ""}${items.map(([k, v], i) => {
+    const y = i * rowH + 3, w = Math.abs(v) * scale, x = signed ? (v < 0 ? mid - w : mid) : trackL, col = signed ? (v < 0 ? "var(--neg)" : "var(--pos)") : "var(--series)";
+    return `<text x="${L - 6}" y="${y + 12}" text-anchor="end" class="${signed ? "" : "lbl"}">${esc(k)}</text><rect x="${x}" y="${y + 2}" width="${Math.max(w, 0)}" height="12" rx="3" fill="${col}"/>
+    <text x="${signed ? (v < 0 ? x - 4 : x + w + 4) : x + w + 4}" y="${y + 12}" text-anchor="${signed && v < 0 ? "end" : "start"}">${signed ? (v > 0 ? "+" : "") + v.toFixed(1) : (v * 100).toFixed(0) + "%"}</text>`;
+  }).join("")}</svg>`;
+}
+
+// audio + fusion events (firmware ENABLE_AUDIO). Only cash outcomes are listed; tamper is shown by the cascade status.
+const EVENT = {NORMAL_DISPENSE: ["ok", "Cash dispensed"], ABNORMAL_MECHANICAL: ["down", "Not dispensed"]};
+function activityPanel(events) {
+  const visits = events.filter(e => EVENT[e.ev]).slice(0, 15), r = events[0]?.roll;
+  const roll = !r ? "" : `<dl class="roll">
+    <div><dt>Cash dispensed</dt><dd>${r.disp}</dd><p>since the node started</p></div>
+    <div><dt>Last dispense</dt><dd>${r.lastDisp < 0 ? "None yet" : ago(r.lastDisp)}</dd></div></dl>`;
+  const rows = visits.map(e => {
+    const [st, word] = EVENT[e.ev];
+    return `<tr class="st-${st}"><td>${tsf(e.received)}</td><td>${glyph(st)}${esc(word)}${e.final ? "" : ` <span class="tag">Still running</span>`}</td>
+      <td>${e.dur} s</td><td>${Math.round(e.conf * 100)}%</td>
+      <td>${Math.round(e.audio.pdmax * 100)}%</td><td>${e.vib.pk}</td><td>${Math.round(e.pir.frac * 100)}%</td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="empty">No cash events yet. A row appears when cash is dispensed or a withdrawal fails.</td></tr>`;
+  return `<div class="panel"><h3>Activity<span>cash dispensed and failed withdrawals</span></h3>${roll}
+    <div class="history"><table><thead><tr><th>Time</th><th>Event</th><th>Duration</th><th>Confidence</th><th>Dispense sound</th><th>Vibration peak</th><th>Presence</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function liveBody() {
+  if (!live) return `<div class="panel"><p class="empty">Loading telemetry…</p></div>`;
+  const tel = live.telemetry, inf = live.inference, last = inf[inf.length - 1];
+  window._tel = tel;
+  const s2 = !last ? `<p class="empty">No inference yet</p>` : last.stage2.every(v => v == null)
+    ? `<p class="empty">Stage 2 didn't run: ${last.fault_mask ? "a deterministic sensor check fired first" : "Stage 1 scored the window as normal"}</p>`
+    : hbar(live.stage2_labels.map((k, i) => [NAME[k], last.stage2[i]]), false);
+  const tz = last ? hbar(Object.entries(last.topz).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])), true) : `<p class="empty">No inference yet</p>`;
+  const hist = inf.slice().reverse().map(r => {
+    const s = r.class === "NORMAL" ? "ok" : r.alert && r.class !== "SENSOR_FAULT" ? "down" : "warn";
+    return `<tr class="st-${s}"><td>${tsf(r.timestamp)}</td><td>${r.p_abnormal == null ? "n/a" : r.p_abnormal.toFixed(4)}</td><td>${glyph(s)}${esc(NAME[r.class] || r.class)}</td><td>${r.persist}</td><td>${r.alert ? "Yes" : ""}</td>
+      <td>${Object.entries(r.topz).slice(0, 3).map(([k, v]) => `${esc(k)} ${v > 0 ? "+" : ""}${v.toFixed(1)}`).join(", ")}</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="empty">The first inference arrives 300 s after the node boots.</td></tr>`;
+  return `<div class="panel"><h3>Sensors<span>last ${tel.length} seconds, the window the model scores</span></h3><div class="charts">${CH.filter(c => tel.some(r => r[c[0]] != null)).map(c => lineChart(...c, tel)).join("")}${motionChart(tel)}</div></div>
+    <div class="pair"><div class="panel"><h3>Fault type<span>Stage 2 probabilities</span></h3><div class="pad">${s2}</div></div>
+    <div class="panel"><h3>Most unusual features<span>vs. training data</span></h3><div class="pad">${tz}<p class="k">Standardised value in σ, clipped at ±8</p></div></div></div>
+    ${activityPanel(live.events || [])}
+    <div class="panel"><h3>Inference history<span>last ${inf.length}</span></h3><div class="history"><table><thead><tr><th>Time</th><th>P(abnormal)</th><th>Class</th><th>Streak</th><th>Alert</th><th>Top features</th></tr></thead><tbody>${hist}</tbody></table></div></div>`;
+}
+
+function renderDetail() {
+  const a = fleet.find(x => x.atm_id === selected);
+  if (!a) { $("detail").innerHTML = `<p class="empty">Select an ATM to see its details.</p>`; return; }
+  $("detail").innerHTML = `<header><h2>${esc(a.name)}</h2><span class="tag ${a.demo ? "" : "live"}">${a.demo ? "Demo" : "Live"}</span><span class="tag">${esc(a.atm_id)}</span>
+    <p>${esc(a.street)}, Coimbatore. Last report ${ago(a.seen_ago)}.</p></header>${facts(a)}${liveBody()}`;
+  if (mouse) hover(mouse); // keep the crosshair on the freshly rendered chart
+}
+
+async function get(url) {
+  const r = await fetch(url);
+  if (r.status === 401) { location.href = "/admin/login"; throw new Error("signed out"); }
+  return r.json();
+}
+
+async function tick() {
+  let d;
+  try { d = await get(`/api/admin/fleet?demo=${mode()}`); } catch { $("summary").textContent = "Can't reach the server. Retrying…"; return; }
+  fleet = d.atms; OFF = d.offline_s; THR = d.threshold; $("who").textContent = `Signed in as ${d.user}`;
+  if (!selected || !fleet.some(a => a.atm_id === selected)) selected = fleet.slice().sort((a, b) => RANK[sev(a)[0]] - RANK[sev(b)[0]])[0]?.atm_id;
+  // rebuild the list only when a row's content changes, so keyboard focus survives polling
+  const next = JSON.stringify(fleet.map(a => [a.atm_id, a.name, sev(a)]));
+  if (next !== sig) { sig = next; renderFleet(); summary(); }
+  fleet.forEach(a => { const el = document.querySelector(`[data-ago="${CSS.escape(a.atm_id)}"]`); if (el) el.textContent = ago(a.seen_ago); });
+  const a = fleet.find(x => x.atm_id === selected);
+  if (a) { try { live = await get(`/api/admin/atm/${encodeURIComponent(a.atm_id)}`); } catch { return; } }
+  renderDetail();
+}
+
+$("detail").addEventListener("click", async e => {
+  const b = e.target.closest("[data-override]"); if (!b) return;
+  b.disabled = true; b.textContent = "Marking…";
+  try {
+    const r = await fetch(`/api/admin/atm/${encodeURIComponent(b.dataset.override)}/override`, {method: "POST"});
+    if (r.status === 401) { location.href = "/admin/login"; return; }
+  } catch {}
+  tick();
+});
+$("units").addEventListener("click", e => {
+  const b = e.target.closest(".unit"); if (!b) return;
+  selected = b.dataset.id; live = null; history.replaceState(null, "", "#" + encodeURIComponent(selected));
+  document.querySelectorAll(".unit").forEach(u => u.setAttribute("aria-current", u.dataset.id === selected));
+  renderDetail(); tick();
+  if (matchMedia("(max-width: 900px)").matches) $("detail").scrollIntoView();
+});
+document.querySelectorAll("input[name=f]").forEach(r => r.addEventListener("change", renderFleet));
+document.querySelectorAll("input[name=mode]").forEach(r => r.addEventListener("change", () => {
+  try { localStorage.setItem("atm-mode", r.value); } catch {}
+  live = null; tick();
+}));
+
+// crosshair + tooltip on the sensor charts
+const tip = $("tip");
+let mouse = null;
+function hover(e) { // e is a real event, or {clientX, clientY} replayed after the detail re-renders
+  mouse = e;
+  const svg = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-ch] svg");
+  if (!svg) { tip.style.display = "none"; document.querySelectorAll(".cross,.chart circle").forEach(el => el.style.display = "none"); return; }
+  const name = svg.closest("[data-ch]").dataset.ch, n = +svg.dataset.n, lo = +svg.dataset.lo, hi = +svg.dataset.hi, pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse()), i = Math.round((p.x - 40) / (CW - 48) * (SPAN - 1)) - (SPAN - n);
+  const r = (window._tel || [])[i]; if (!r || i < 0) { tip.style.display = "none"; return; }
+  const v = r[name], x = 40 + slot(i, n) * (CW - 48), y = v == null ? null : 18 + (1 - (v - lo) / (hi - lo)) * (110 - 36);
+  const c = svg.querySelector(".cross"), dot = svg.querySelector("circle"); c.setAttribute("x1", x); c.setAttribute("x2", x); c.style.display = "";
+  if (y != null) { dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.style.display = ""; } else dot.style.display = "none";
+  const [, , unit, dec] = CH.find(c => c[0] === name);
+  tip.innerHTML = `<b>${v == null ? "No reading" : `${fmt(v, dec)} ${unit}`}</b><br><span style="color:var(--ink2)">${tsf(r.timestamp)}</span>`;
+  tip.style.display = "block"; tip.style.left = (e.clientX + 12) + "px"; tip.style.top = (e.clientY + 12) + "px";
+}
+document.addEventListener("mousemove", hover);
+tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

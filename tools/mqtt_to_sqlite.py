@@ -1,4 +1,4 @@
-"""Subscribe to atm/+/{telemetry,inference,status} and store every message in SQLite.
+"""Subscribe to atm/+/{telemetry,inference,status,event} and store every message in SQLite.
 
     pip install paho-mqtt
     python tools/mqtt_to_sqlite.py                 # broker localhost, db atm_sentinel.db
@@ -6,8 +6,10 @@
 
 Tables mirror the topics. telemetry is the schema.yaml record (null preserved);
 inference keeps the 57 raw features as JSON so a window can be re-scored offline.
+event is the audio + fusion module's interaction summary (schema.yaml `event`); its device time `t` is
+seconds since the node booted, so `received` (logger clock) is the timestamp to sort and display by.
 """
-import argparse, json, sqlite3, sys
+import argparse, json, sqlite3, sys, time
 import paho.mqtt.client as mqtt
 
 SCHEMA = """
@@ -20,6 +22,9 @@ CREATE TABLE IF NOT EXISTS inference (
   stage2 TEXT, class TEXT, persist INTEGER, alert INTEGER, topz TEXT, features TEXT,
   PRIMARY KEY (atm_id, timestamp));
 CREATE TABLE IF NOT EXISTS status (atm_id TEXT, timestamp INTEGER, json TEXT);
+CREATE TABLE IF NOT EXISTS event (
+  atm_id TEXT, received INTEGER, device_t INTEGER, duration_s INTEGER, class TEXT, final INTEGER,
+  rule TEXT, confidence REAL, tamper INTEGER, dispensed INTEGER, json TEXT);
 """
 TELEMETRY = ["atm_id", "timestamp", "temperature", "humidity", "pressure", "light", "voltage", "current", "vibration", "motion"]
 
@@ -53,6 +58,15 @@ def main():
         elif kind == "status":
             db.execute("INSERT INTO status VALUES (?,?,?)", (d["atm_id"], d["timestamp"], json.dumps(d)))
             print("STATUS", json.dumps(d))
+        elif kind == "event":
+            atm_id = m.topic.split("/")[1]
+            # named columns: a db created before cash_risk was dropped still accepts the row
+            db.execute("INSERT INTO event (atm_id, received, device_t, duration_s, class, final, rule, confidence,"
+                       " tamper, dispensed, json) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                       (atm_id, int(time.time()), d["t"], d["dur"], d["ev"], d["final"], d["rule"], d["conf"],
+                        d["tamper"], d["dispensed"], json.dumps(d)))
+            print(f"EVENT {atm_id} {d['ev']}{'' if d['final'] else ' (early alert)'} rule={d['rule']} "
+                  f"conf={d['conf']} dur={d['dur']}s")
         db.commit()
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)

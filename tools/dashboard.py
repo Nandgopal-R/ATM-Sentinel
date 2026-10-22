@@ -1,18 +1,146 @@
-"""ATM Sentinel live dashboard. Reads the SQLite file that mqtt_to_sqlite.py writes.
+"""ATM Sentinel web UI. Reads the SQLite file that mqtt_to_sqlite.py writes.
 
-    pip install flask
-    python tools/dashboard.py                      # http://localhost:5000, db atm_sentinel.db
+    pip install flask paho-mqtt
+    ATM_ADMIN_PASSWORD=... python tools/dashboard.py          # http://localhost:5000
     python tools/dashboard.py --db demo.db --port 8080
 
-One page, polls /api/state every second. No JS libraries; charts are inline SVG.
-"""
-import argparse, json, sqlite3
-from flask import Flask, jsonify, Response
+    /        public map: which ATMs in Coimbatore are working (no login)
+    /admin   operations console: per-ATM faults, model output, raw telemetry (login)
+    /demo    two buttons that send txn:1 / txn:0 to the live ATM on atm/<id>/cmd (demo or admin login)
 
-app = Flask(__name__)
+Admin credentials come from ATM_ADMIN_USER (default "admin") and ATM_ADMIN_PASSWORD;
+without the latter a random password is printed at startup. Same for the demo login
+(user "demo", ATM_DEMO_PASSWORD). Pages live in tools/web/.
+Only ATM_001 is real hardware; the rest of the fleet is DEMO fixtures so the map has a network.
+"""
+import argparse, hmac, json, math, os, random, secrets, sqlite3, time
+import paho.mqtt.publish as mqtt_publish
+from flask import Flask, jsonify, redirect, render_template, request, session
+
+app = Flask(__name__, static_folder="web", static_url_path="/static", template_folder="web")
+app.secret_key = os.environ.get("ATM_SECRET_KEY") or secrets.token_hex(32)  # unset: sessions end on restart
+app.config.update(SESSION_COOKIE_SAMESITE="Lax")  # cross-site POSTs carry no session
+ADMIN_USER = os.environ.get("ATM_ADMIN_USER", "admin")
+ADMIN_PASSWORD = os.environ.get("ATM_ADMIN_PASSWORD") or secrets.token_urlsafe(9)
+DEMO_USER = "demo"
+DEMO_PASSWORD = os.environ.get("ATM_DEMO_PASSWORD") or secrets.token_urlsafe(9)
+MQTT = ("localhost", 1883)
+
 DB = "atm_sentinel.db"
 STAGE1_THRESHOLD = 0.7615026
 STAGE2 = ["COOLING_FAILURE", "HIGH_HUMIDITY", "POWER_FAILURE", "TAMPER", "SENSOR_FAULT"]
+OFFLINE_S = 30  # telemetry is 1 Hz; this long without a sample = not reporting
+
+# Where the real nodes are installed. PROVISIONAL: edit when the node moves.
+SITES = {"ATM_001": ("Amrita", "Amrita Nagar, Ettimadai", 10.9036, 76.8997)}
+
+BASE = dict(temperature=27.6, humidity=57.0, pressure=1009.2, light=182.0, voltage=230.4,
+            current=1.42, vibration=0, motion=0)
+
+
+def demo(atm_id, name, street, lat, lng, cls="NORMAL", p=0.07, persist=0, seen=2, **readings):
+    return dict(atm_id=atm_id, name=name, street=street, lat=lat, lng=lng, demo=True, cls=cls,
+                p_abnormal=p, persist=persist, alert=persist >= 2, seen_ago=seen, readings={**BASE, **readings})
+
+
+DEMO = [
+    demo("ATM_002", "Gandhipuram", "Cross Cut Road", 11.0176, 76.9674),
+    demo("ATM_003", "R.S. Puram", "D.B. Road", 11.0089, 76.9496, p=0.11),
+    demo("ATM_004", "Race Course", "West Club Road", 10.9997, 76.9779, "COOLING_FAILURE", 0.93, 4, temperature=41.6),
+    demo("ATM_005", "Town Hall", "Big Bazaar Street", 10.9937, 76.9616, "TAMPER", 0.99, 2, vibration=23, motion=1),
+    demo("ATM_006", "Saibaba Colony", "N.S.R. Road", 11.0253, 76.9419, "SENSOR_FAULT", None, 3, humidity=None),
+    demo("ATM_007", "Singanallur", "Trichy Road", 10.9985, 77.0322, seen=7300),
+    demo("ATM_008", "Saravanampatti", "Sathy Road", 11.0797, 76.9997, "HIGH_HUMIDITY", 0.81, 1, humidity=86.4),
+    demo("ATM_009", "Ukkadam", "Palakkad Road", 10.9853, 76.9590, "POWER_FAILURE", 0.97, 5, voltage=0.0, current=0.0),
+    demo("ATM_010", "Ganapathy", "Mettupalayam Road", 11.0410, 76.9790, p=0.05),
+]
+DEMO_BY_ID = {d["atm_id"]: d for d in DEMO}
+
+# How each demo fault plays out in its 300 s window: where it starts (fraction of the window), how it
+# arrives, and the features it pushes furthest from training data (z, the model's "most unusual" list)
+FAULT_SHAPE = {
+    "COOLING_FAILURE": (0.15, "ramp", {"temperature_slope": 6.8, "temperature_delta": 6.1, "temperature_max": 5.2, "temperature_std": 3.1, "temp_rh_corr": -2.4}),
+    "HIGH_HUMIDITY": (0.5, "ramp", {"humidity_slope": 5.4, "humidity_delta": 4.9, "humidity_max": 4.2, "abs_humidity_slope": 3.6, "temp_rh_corr": 1.8}),
+    "POWER_FAILURE": (0.6, "step", {"voltage_dropout_frac": 8.0, "voltage_min": -8.0, "current_min": -7.5, "voltage_delta": -6.9, "current_mean": -3.2}),
+    "TAMPER": (0.55, "step", {"vibration_max": 7.9, "vibration_active_frac": 6.2, "motion_frac": 4.8, "motion_transitions": 3.9, "vibration_sum": 3.5}),
+    "SENSOR_FAULT": (0.3, "step", {"humidity_null_frac": 8.0, "temp_rh_corr": -1.2, "humidity_std": -0.9}),
+}
+NOISE = dict(temperature=0.05, humidity=0.2, pressure=0.05, light=2.0, voltage=0.3, current=0.003)
+CALM = ["temperature_std", "humidity_std", "pressure_slope", "light_mean", "light_std", "current_mean", "voltage_std", "motion_frac"]
+
+
+def demo_detail(a):
+    """Simulated history for a demo unit, in the same shape as a real node's. Seeded by (unit, second),
+    so every poll returns the same past and the window scrolls like live telemetry."""
+    end = int(time.time()) - a["seen_ago"]
+    onset, how, topz = FAULT_SHAPE.get(a["cls"], (2, "step", {}))  # onset 2: never, the unit is healthy
+    tel = []
+    for t in range(end - 299, end + 1):
+        rnd, f = random.Random(f"{a['atm_id']}{t}"), (t - end + 299) / 299
+        k = 0 if f < onset else (f - onset) / (1 - onset) if how == "ramp" else 1
+        r = dict(atm_id=a["atm_id"], timestamp=t)
+        for key, sd in NOISE.items():
+            target = a["readings"][key]
+            if target is None:  # the sensor that dropped out
+                r[key] = None if k else round(BASE[key] + sd * (2 * math.sin(t / (23 + 7 * len(key)) + len(key)) + rnd.gauss(0, 0.5)), 3)
+                continue
+            v = BASE[key] + (target - BASE[key]) * k
+            r[key] = round(v + sd * (2 * math.sin(t / (23 + 7 * len(key)) + len(key)) + rnd.gauss(0, 0.5)), 3) if v else 0.0  # slow drift + jitter, like a real sensor
+        r["vibration"] = rnd.randint(8, a["readings"]["vibration"]) if k and a["readings"]["vibration"] else int(rnd.random() < 0.05)
+        r["motion"] = int(rnd.random() < 0.7) if k and a["readings"]["motion"] else int(t % 97 < 18)  # a customer every ~1.5 min
+        tel.append(r)
+    inf = []
+    for j in range(29, -1, -1):  # one inference a minute, the firmware's stride
+        rnd, run = random.Random(f"{a['atm_id']}inf{end - 60 * j}"), a["persist"] - j
+        bad = run > 0 and a["cls"] != "NORMAL"
+        cls = a["cls"] if bad else "NORMAL"
+        p = None if cls == "SENSOR_FAULT" else round(min(0.999, a["p_abnormal"] - 0.02 * j + rnd.gauss(0, 0.01)), 4) if bad else round(rnd.uniform(0.04, 0.18), 4)
+        stage2 = [None] * 5
+        if bad and cls != "SENSOR_FAULT":
+            hit, rest = rnd.uniform(0.82, 0.94), [rnd.random() for _ in STAGE2]
+            stage2 = [round(hit if s == cls else (1 - hit) * w / (sum(rest) - rest[STAGE2.index(cls)]), 4) for s, w in zip(STAGE2, rest)]
+        z = {n: round(v * rnd.uniform(0.85, 1.05), 2) for n, v in topz.items()} if bad else \
+            {n: round(rnd.gauss(0, 0.7), 2) for n in rnd.sample(CALM, 5)}
+        z = dict(sorted(z.items(), key=lambda kv: -abs(kv[1])))  # the firmware sends them largest first
+        inf.append(dict(atm_id=a["atm_id"], timestamp=end - 60 * j, window_s=300, fault_mask=2 if cls == "SENSOR_FAULT" else 0,
+                        p_abnormal=p, stage2=stage2, persist=max(run, 0) if bad else 0, alert=bad and run >= 2, topz=z, features=[], **{"class": cls}))
+    return dict(telemetry=tel, inference=inf, status=None, threshold=STAGE1_THRESHOLD, stage2_labels=STAGE2,
+                events=demo_events(a, end))
+
+
+DEMO_VISITS = ["NORMAL_DISPENSE"] * 5 + ["SHORT_VISIT"] * 2 + ["VISIT_NO_DISPENSE", "UNKNOWN"]
+
+
+def demo_events(a, end):
+    """Simulated audio + fusion events for a demo unit, newest first, in the shape the node publishes
+    (firmware formatEventJson) plus `received`. Ages are fixed per unit, so the list doesn't reshuffle."""
+    rnd = random.Random(a["atm_id"] + "events")
+    kinds = [rnd.choice(DEMO_VISITS) for _ in range(8)]
+    if a["cls"] == "TAMPER":
+        kinds[-1] = "SUSPECTED_TAMPER"
+    ages = sorted((rnd.randint(120, 7200) for _ in kinds), reverse=True)
+    out, disp = [], 0
+    for k, age in zip(kinds, ages):
+        disp += k == "NORMAL_DISPENSE"
+        out.append(dict(
+            received=end - age, ev=k, final=1, dur=rnd.randint(8, 28) if k == "SHORT_VISIT" else rnd.randint(30, 95),
+            conf=round(rnd.uniform(0.45, 0.59) if k == "UNKNOWN" else rnd.uniform(0.66, 0.98), 2),
+            rule={"SUSPECTED_TAMPER": "TAMPER_PRIORITY", "UNKNOWN": "LOW_CONFIDENCE"}.get(k, "MODEL"),
+            audio=dict(pdmax=round(rnd.uniform(0.82, 0.96) if k == "NORMAL_DISPENSE" else rnd.uniform(0.02, 0.3), 2),
+                       pamax=round(rnd.uniform(0.01, 0.08), 2)),
+            vib=dict(pk=rnd.randint(110, 190) if k == "SUSPECTED_TAMPER" else rnd.randint(0, 14)),
+            pir=dict(frac=round(rnd.uniform(0.6, 0.95), 2)), tamper=int(k == "SUSPECTED_TAMPER"),
+            dispensed=int(k == "NORMAL_DISPENSE")))
+    # rolling stats exactly as RollingWindow::stats() computes them, attached to the newest event
+    score, recent = 0.0, sum(e["ev"] == "SHORT_VISIT" and end - e["received"] <= 600 for e in out)
+    for e in reversed(out):
+        if e["ev"] == "NORMAL_DISPENSE":
+            break
+        score += {"VISIT_NO_DISPENSE": 1.0, "SHORT_VISIT": 0.5}.get(e["ev"], 0.0)
+    last = next((e["received"] for e in reversed(out) if e["dispensed"]), None)
+    out[-1]["roll"] = dict(disp=disp, sv10m=recent, rsv=int(recent >= 3), nd=score,
+                           lastDisp=-1 if last is None else end - last)
+    return out[::-1]
 
 
 def rows(sql, *args):
@@ -20,150 +148,198 @@ def rows(sql, *args):
     db.row_factory = sqlite3.Row
     try:
         return [dict(r) for r in db.execute(sql, args)]
-    except sqlite3.OperationalError:  # tables not created yet
+    except sqlite3.OperationalError:  # db or tables not created yet
         return []
     finally:
         db.close()
 
 
-@app.get("/api/state")
-def state():
-    # rowid order, not timestamp: pre-NTP rows carry seconds-since-boot and would sort wrong
-    tel = rows("SELECT * FROM telemetry ORDER BY rowid DESC LIMIT 300")[::-1]
-    inf = rows("SELECT * FROM inference ORDER BY rowid DESC LIMIT 30")[::-1]
-    for r in inf:
-        for k in ("stage2", "topz", "features"):
-            r[k] = json.loads(r[k])
-    st = rows("SELECT json FROM status ORDER BY rowid DESC LIMIT 1")
-    return jsonify(telemetry=tel, inference=inf, status=json.loads(st[0]["json"]) if st else None,
-                   threshold=STAGE1_THRESHOLD, stage2_labels=STAGE2)
+def public_status(a):
+    if a["seen_ago"] is None or a["seen_ago"] > OFFLINE_S:
+        return "unknown"
+    # a sensor fault means we can't see the machine well, not that it can't dispense
+    fault = a["alert"] and not a["overridden"] and a["cls"] != "SENSOR_FAULT"
+    return "down" if fault or a["cash_ok"] is False else "ok"
+
+
+def add_cash_and_override(out):
+    """Latest withdrawal outcome per ATM, and the admin's "mark as working": it clears a cascade alert
+    until the cascade has scored a NORMAL window again, and a failed withdrawal from before the click."""
+    now = int(time.time())
+    ov = {r["atm_id"]: r["at"] for r in rows("SELECT atm_id, at FROM override")}
+    normal = {r["atm_id"]: r["t"] for r in rows("SELECT atm_id, max(timestamp) AS t FROM inference WHERE class='NORMAL' GROUP BY atm_id")}
+    cash = {r["atm_id"]: (r["ok"], r["fail"]) for r in rows(
+        "SELECT atm_id, max(CASE WHEN dispensed=1 THEN received END) AS ok, "
+        "max(CASE WHEN class='ABNORMAL_MECHANICAL' THEN received END) AS fail FROM event GROUP BY atm_id")}
+    for a in out:
+        o = ov.get(a["atm_id"])
+        if a["demo"]:
+            ev = demo_events(a, now - a["seen_ago"])
+            ok_t = max((e["received"] for e in ev if e["dispensed"]), default=None)
+            fail_t = max((e["received"] for e in ev if e["ev"] == "ABNORMAL_MECHANICAL"), default=None)
+        else:
+            ok_t, fail_t = cash.get(a["atm_id"], (None, None))
+        if fail_t is not None and o is not None and fail_t <= o:
+            fail_t = None
+        failed = fail_t is not None and (ok_t is None or fail_t > ok_t)
+        t = fail_t if failed else ok_t
+        a.update(override_at=o, cash_ok=None if t is None else not failed, cash_ago=None if t is None else max(0, now - t),
+                 overridden=bool(a["alert"] and o is not None and (normal.get(a["atm_id"]) or 0) < o))
+
+
+def fleet(with_demo=True):
+    now = time.time()
+    tel = {r["atm_id"]: r for r in rows("SELECT * FROM telemetry WHERE rowid IN (SELECT max(rowid) FROM telemetry GROUP BY atm_id)")}
+    inf = {r["atm_id"]: r for r in rows("SELECT * FROM inference WHERE rowid IN (SELECT max(rowid) FROM inference GROUP BY atm_id)")}
+    out = []
+    for atm_id, t in tel.items():
+        i = inf.get(atm_id, {})
+        name, street, lat, lng = SITES.get(atm_id, (atm_id, "Location not set", None, None))
+        # pre-NTP timestamps are seconds since boot; fall back to when the db was last written
+        ts = t["timestamp"] if t["timestamp"] > 1e9 else os.path.getmtime(DB)
+        out.append(dict(atm_id=atm_id, name=name, street=street, lat=lat, lng=lng, demo=False,
+                        cls=i.get("class"), p_abnormal=i.get("p_abnormal"), persist=i.get("persist", 0),
+                        alert=bool(i.get("alert")), seen_ago=max(0, round(now - ts)),
+                        readings={k: t[k] for k in BASE}))
+    for atm_id in SITES.keys() - tel.keys():  # installed but never reported
+        name, street, lat, lng = SITES[atm_id]
+        out.append(dict(atm_id=atm_id, name=name, street=street, lat=lat, lng=lng, demo=False, cls=None, p_abnormal=None,
+                        persist=0, alert=False, seen_ago=None, readings=dict.fromkeys(BASE)))
+    if with_demo:
+        out += [dict(d) for d in DEMO if d["atm_id"] not in tel and d["atm_id"] not in SITES]
+    add_cash_and_override(out)
+    for a in out:
+        a["status"] = public_status(a)
+    return out
+
+
+@app.before_request
+def require_admin():
+    p = request.path
+    if p in ("/admin/login", "/admin/logout"):
+        return None
+    if p.startswith(("/admin", "/api/admin", "/static/admin")) and not session.get("admin") or \
+            p.startswith(("/demo", "/api/demo")) and not (session.get("admin") or session.get("demo")):
+        return (jsonify(error="sign in required"), 401) if p.startswith("/api/") else redirect("/admin/login")
 
 
 @app.get("/")
-def index():
-    return Response(PAGE, mimetype="text/html")
+def customer_page():
+    return app.send_static_file("map.html")
 
 
-PAGE = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ATM Sentinel</title>
-<style>
-:root{color-scheme:light;--surface:#fcfcfb;--card:#ffffff;--line:#e4e3df;--grid:#ecebe7;--text:#0b0b0b;--text2:#52514e;--muted:#8a8985;
-  --series:#2a78d6;--pos:#2a78d6;--neg:#e34948;--mid:#f0efec;--good:#0ca30c;--warn:#fab219;--serious:#ec835a;--critical:#d03b3b}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--surface:#1a1a19;--card:#232322;--line:#383835;--grid:#2c2c2a;--text:#fff;--text2:#c3c2b7;--muted:#8a8985;--series:#3987e5;--pos:#3987e5;--neg:#e66767;--mid:#383835}}
-:root[data-theme=dark]{color-scheme:dark;--surface:#1a1a19;--card:#232322;--line:#383835;--grid:#2c2c2a;--text:#fff;--text2:#c3c2b7;--muted:#8a8985;--series:#3987e5;--pos:#3987e5;--neg:#e66767;--mid:#383835}
-*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--surface);color:var(--text);font:14px/1.4 system-ui,sans-serif}
-h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;font-weight:600;color:var(--text2);margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em}
-.sub{color:var(--text2);margin-bottom:14px}.grid{display:grid;gap:12px}.kpi{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.sm{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
-.hero{font-size:44px;font-weight:600;line-height:1.1;letter-spacing:-.01em}.k{color:var(--text2);font-size:12px;margin-top:4px}
-.badge{display:inline-flex;align-items:center;gap:8px;font-size:22px;font-weight:600}.dot{width:14px;height:14px;border-radius:50%;flex:none}
-.meter{height:10px;background:var(--grid);border-radius:5px;position:relative;margin:10px 0 4px;overflow:hidden}.meter>i{position:absolute;left:0;top:0;bottom:0;background:var(--series);border-radius:5px}
-.meter>b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--text)}
-svg{display:block;width:100%;height:auto}.ax{stroke:var(--line);stroke-width:1}.gl{stroke:var(--grid);stroke-width:1}
-.ln{fill:none;stroke:var(--series);stroke-width:2;stroke-linejoin:round}.ar{fill:var(--series);opacity:.12}
-text{fill:var(--text2);font-size:11px}.lbl{fill:var(--text);font-weight:600}
-table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--text2);font-weight:600;border-bottom:1px solid var(--line);padding:6px 8px}td{padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
-.mono{font-variant-numeric:tabular-nums}.tip{position:fixed;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;display:none;z-index:9}
-section{margin-top:14px}.empty{color:var(--muted);padding:24px;text-align:center}
-</style></head><body>
-<h1>ATM Sentinel <span id="atm" style="color:var(--text2);font-weight:400"></span></h1>
-<div class="sub" id="sub">waiting for data…</div>
-<div class="grid kpi">
-  <div class="card"><h2>Current state</h2><div class="badge"><span class="dot" id="dot"></span><span id="cls">—</span></div><div class="k" id="clsk"></div></div>
-  <div class="card"><h2>P(abnormal)</h2><div class="hero mono" id="p">—</div><div class="meter"><i id="pbar" style="width:0"></i><b id="pthr"></b></div><div class="k">threshold <span id="thr" class="mono"></span> · Stage 1 sigmoid</div></div>
-  <div class="card"><h2>Persistence</h2><div class="hero mono" id="persist">—</div><div class="k" id="persistk">consecutive abnormal windows</div></div>
-  <div class="card"><h2>Node</h2><div id="node" class="k" style="margin-top:0;font-size:13px;line-height:1.6">—</div></div>
-</div>
-<section><h2>Last 300 s — the inference window</h2><div class="grid sm" id="sm"></div></section>
-<div class="grid two" style="margin-top:14px">
-  <div class="card"><h2>Stage 2 — fault probabilities</h2><div id="s2"></div></div>
-  <div class="card"><h2>Furthest from training data — top |z|</h2><div id="tz"></div><div class="k">standardised feature value in σ, clipped at ±8</div></div>
-</div>
-<section><h2>Inference history</h2><div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>time</th><th>p_abnormal</th><th>class</th><th>persist</th><th>alert</th><th>top |z|</th></tr></thead><tbody id="hist"></tbody></table></div></section>
-<div class="tip" id="tip"></div>
-<script>
-const $=id=>document.getElementById(id);
-const CH=[["temperature","°C",2],["humidity","% RH",1],["pressure","hPa",1],["light","lux",1],["vibration","edges/s",0],["current","A",3]];
-const STATUS={NORMAL:["good","✓"],SENSOR_FAULT:["warn","⚠"],COOLING_FAILURE:["serious","●"],HIGH_HUMIDITY:["serious","●"],POWER_FAILURE:["serious","●"],TAMPER:["critical","■"]};
-const fmt=(v,d)=>v==null?"null":Number(v).toFixed(d);
-const tsf=t=>t>1e9?new Date(t*1000).toLocaleTimeString():`+${t}s`;
-const tip=$("tip");
-function showTip(e,html){tip.innerHTML=html;tip.style.display="block";tip.style.left=(e.clientX+12)+"px";tip.style.top=(e.clientY+12)+"px"}
-function hideTip(){tip.style.display="none"}
+@app.get("/api/atms")
+def public_atms():
+    # customers get location, a yes/no and the latest withdrawal outcome, never the fault class or event details
+    keep = ("atm_id", "name", "street", "lat", "lng", "status", "seen_ago", "cash_ago", "cash_ok")
+    return jsonify(atms=[{k: a[k] for k in keep} for a in fleet(request.args.get("demo") != "0") if a["lat"] is not None])
 
-function lineChart(name,unit,dec,data){ // single series: no legend, title names it
-  const W=300,H=110,L=40,R=8,T=18,B=18,vals=data.map(r=>r[name]);
-  const ok=vals.filter(v=>v!=null);const n=data.length;
-  if(!ok.length)return `<div class="card"><h2>${name}</h2><div class="empty">all null</div></div>`;
-  let lo=Math.min(...ok),hi=Math.max(...ok);if(hi-lo<1e-9){hi=lo+1;lo=lo-1}
-  const x=i=>L+(i/(Math.max(n,300)-1))*(W-L-R),y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-B);
-  let path="",cur="";vals.forEach((v,i)=>{if(v==null){if(cur)path+=cur;cur="";return}cur+=(cur?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1)+" "});path+=cur;
-  const last=ok[ok.length-1],nulls=vals.filter(v=>v==null).length;
-  return `<div class="card" data-ch="${name}"><h2>${name} <span style="float:right;color:var(--text);font-weight:600" class="mono">${fmt(last,dec)} ${unit}</span></h2>
-  <svg viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-n="${n}">
-   <line class="gl" x1="${L}" x2="${W-R}" y1="${y(hi)}" y2="${y(hi)}"/><line class="gl" x1="${L}" x2="${W-R}" y1="${y((hi+lo)/2)}" y2="${y((hi+lo)/2)}"/>
-   <line class="ax" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>
-   <text x="${L-4}" y="${y(hi)+4}" text-anchor="end" class="mono">${fmt(hi,dec)}</text><text x="${L-4}" y="${y(lo)+4}" text-anchor="end" class="mono">${fmt(lo,dec)}</text>
-   <text x="${L}" y="${H-4}">-${n}s</text><text x="${W-R}" y="${H-4}" text-anchor="end">now</text>
-   <path class="ln" d="${path}"/><line class="cross" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="var(--text2)" stroke-dasharray="2 2" style="display:none"/>
-   <circle r="4" fill="var(--series)" stroke="var(--card)" stroke-width="2" style="display:none"/>
-  </svg>${nulls?`<div class="k">${nulls} null sample${nulls>1?"s":""}</div>`:""}</div>`;
-}
-function hbar(items,dec,signed){ // horizontal bars, thin, rounded data-end, 2px gap
-  const W=320,rowH=22,L=signed?130:120,R=44,H=items.length*rowH+4,max=signed?8:1;
-  const mid=signed?L+(W-L-R)/2:L,scale=(W-L-R)/(signed?2*max:max);
-  return `<svg viewBox="0 0 ${W} ${H}">${signed?`<line class="ax" x1="${mid}" x2="${mid}" y1="0" y2="${H}"/>`:""}${items.map(([k,v],i)=>{
-    const y=i*rowH+3,w=Math.abs(v)*scale,x=signed?(v<0?mid-w:mid):L,col=signed?(v<0?"var(--neg)":"var(--pos)"):"var(--series)";
-    return `<text x="${L-6}" y="${y+12}" text-anchor="end" class="${signed?"":"lbl"}">${k}</text><rect x="${x}" y="${y+2}" width="${Math.max(w,0)}" height="12" rx="3" fill="${col}"/>
-    <text x="${signed?(v<0?x-4:x+w+4):x+w+4}" y="${y+12}" text-anchor="${signed&&v<0?"end":"start"}" class="mono">${signed?(v>0?"+":"")+v.toFixed(1):(v*100).toFixed(0)+"%"}</text>`}).join("")}</svg>`;
-}
 
-async function tick(){
-  let s;try{s=await (await fetch("/api/state")).json()}catch(e){return}
-  const tel=s.telemetry,inf=s.inference,last=inf[inf.length-1],lt=tel[tel.length-1];window._tel=tel;
-  $("thr").textContent=s.threshold.toFixed(4);$("pthr").style.left=(s.threshold*100)+"%";
-  if(lt){$("atm").textContent=lt.atm_id;$("sub").textContent=`last sample ${tsf(lt.timestamp)} · ${tel.length} samples in window · ${inf.length} inferences stored`}
-  if(last){
-    const [st,ic]=STATUS[last.class]||["warn","?"];
-    $("dot").style.background=`var(--${st})`;$("cls").textContent=`${ic} ${last.class}`;
-    $("clsk").textContent=last.fault_mask?`deterministic sensor check fired (mask ${last.fault_mask})`:last.p_abnormal>=s.threshold?"Stage 1 abnormal → Stage 2":"Stage 1 below threshold";
-    $("p").textContent=last.p_abnormal==null?"n/a":last.p_abnormal.toFixed(4);$("pbar").style.width=((last.p_abnormal||0)*100)+"%";
-    $("persist").innerHTML=`${last.persist}${last.alert?` <span style="color:var(--critical);font-size:22px">■ ALERT</span>`:""}`;
-    const s2=last.stage2.every(v=>v==null)?`<div class="empty">Stage 2 not run — ${last.fault_mask?"deterministic fault":"Stage 1 said normal"}</div>`:hbar(s.stage2_labels.map((k,i)=>[k,last.stage2[i]]),2,false);
-    $("s2").innerHTML=s2;$("tz").innerHTML=hbar(Object.entries(last.topz).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])),1,true);
-  }
-  if(s.status){const st=s.status,sn=st.sensors,pv=st.provisional;
-    $("node").innerHTML=`${st.ip||""}<br>BME280 ${sn.bme280?"✓ "+sn.bme280_addr:"✗"} · VEML7700 ${sn.veml7700?"✓":"✗"} · INA219 ${sn.ina219?"✓":"✗"}<br>voltage simulated · current ${pv.current_simulated?"simulated":"measured"} · P +${pv.pressure_offset_hpa} hPa<br>arena ${st.models.arena1_used}+${st.models.arena2_used} B`}
-  $("sm").innerHTML=CH.map(([n,u,d])=>lineChart(n,u,d,tel)).join("")+motionChart(tel);
-  $("hist").innerHTML=inf.slice().reverse().map(r=>{const [st,ic]=STATUS[r.class]||["warn","?"];
-    return `<tr><td class="mono">${tsf(r.timestamp)}</td><td class="mono">${r.p_abnormal==null?"n/a":r.p_abnormal.toFixed(4)}</td><td><span class="dot" style="display:inline-block;width:10px;height:10px;vertical-align:-1px;background:var(--${st})"></span> ${r.class}</td><td class="mono">${r.persist}</td><td>${r.alert?"■ ALERT":""}</td><td class="mono">${Object.entries(r.topz).slice(0,3).map(([k,v])=>`${k} ${v>0?"+":""}${v.toFixed(1)}`).join(", ")}</td></tr>`}).join("")||`<tr><td colspan="6" class="empty">first inference arrives 300 s after boot</td></tr>`;
-}
-function motionChart(tel){ // binary: strip, not a line
-  const W=300,H=110,L=40,R=8,n=tel.length,on=tel.filter(r=>r.motion).length;
-  const x=i=>L+(i/(Math.max(n,300)-1))*(W-L-R);
-  return `<div class="card"><h2>motion <span style="float:right;color:var(--text);font-weight:600" class="mono">${n?Math.round(100*on/n):0}% on</span></h2><svg viewBox="0 0 ${W} ${H}">
-  <rect x="${L}" y="40" width="${W-L-R}" height="30" fill="var(--grid)" rx="3"/>${tel.map((r,i)=>r.motion?`<rect x="${x(i)}" y="40" width="${(W-L-R)/300+0.5}" height="30" fill="var(--series)"/>`:"").join("")}
-  <text x="${L-4}" y="59" text-anchor="end">PIR</text><text x="${L}" y="${H-4}">-${n}s</text><text x="${W-R}" y="${H-4}" text-anchor="end">now</text></svg></div>`;
-}
-// crosshair + tooltip on the small multiples
-document.addEventListener("mousemove",e=>{const svg=e.target.closest("[data-ch] svg");if(!svg){hideTip();document.querySelectorAll(".cross,circle").forEach(el=>el.style.display="none");return}
-  const card=svg.closest("[data-ch]"),name=card.dataset.ch,n=+svg.dataset.n,lo=+svg.dataset.lo,hi=+svg.dataset.hi,pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
-  const p=pt.matrixTransform(svg.getScreenCTM().inverse()),i=Math.round((p.x-40)/(300-48)*(Math.max(n,300)-1));
-  const tel=window._tel||[];const r=tel[i];if(!r||i<0){hideTip();return}
-  const v=r[name],x=40+(i/(Math.max(n,300)-1))*(300-48),y=v==null?null:18+(1-(v-lo)/(hi-lo))*(110-36);
-  const c=svg.querySelector(".cross"),d=svg.querySelector("circle");c.setAttribute("x1",x);c.setAttribute("x2",x);c.style.display="";
-  if(y!=null){d.setAttribute("cx",x);d.setAttribute("cy",y);d.style.display=""}else d.style.display="none";
-  showTip(e,`<b>${name}</b> ${v==null?"null":v}<br><span style="color:var(--text2)">${tsf(r.timestamp)}</span>`)});
-tick();setInterval(tick,1000);
-</script></body></html>"""
+@app.route("/admin/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        if session.get("admin") or session.get("demo"):
+            return redirect("/admin" if session.get("admin") else "/demo")
+        return render_template("login.html")
+    user, pw = request.form.get("username", ""), request.form.get("password", "")
+    # ponytail: no rate limit on attempts; put it behind a reverse proxy limit before exposing it publicly
+    for role, u, p, home in (("admin", ADMIN_USER, ADMIN_PASSWORD, "/admin"), ("demo", DEMO_USER, DEMO_PASSWORD, "/demo")):
+        if hmac.compare_digest(user.encode(), u.encode()) & hmac.compare_digest(pw.encode(), p.encode()):
+            session.clear()
+            session[role] = True
+            return redirect(home)
+    return render_template("login.html", error=True, username=user), 401
+
+
+@app.post("/admin/logout")
+def logout():
+    session.clear()
+    return redirect("/admin/login")
+
+
+@app.get("/demo")
+def demo_page():
+    return app.send_static_file("demo.html")
+
+
+@app.get("/api/demo/status")
+def demo_status():
+    atm_id = next(iter(SITES))
+    a = next((a for a in fleet(False) if a["atm_id"] == atm_id), None)
+    return jsonify(atm_id=atm_id, name=SITES[atm_id][0],
+                   online=bool(a and a["seen_ago"] is not None and a["seen_ago"] <= OFFLINE_S))
+
+
+last_txn = 0.0
+
+
+@app.post("/api/demo/txn")
+def demo_txn():
+    global last_txn
+    if time.time() - last_txn < 3:
+        return jsonify(error="wait a moment between presses"), 429
+    dispensed = bool((request.get_json(silent=True) or {}).get("dispensed"))
+    try:
+        mqtt_publish.single(f"atm/{next(iter(SITES))}/cmd", f"txn:{int(dispensed)}", hostname=MQTT[0], port=MQTT[1])
+    except OSError as e:
+        return jsonify(error=f"MQTT broker not reachable: {e}"), 502
+    last_txn = time.time()
+    return jsonify(ok=True, dispensed=dispensed, at=int(last_txn))
+
+
+@app.get("/admin")
+def admin_page():
+    return app.send_static_file("admin.html")
+
+
+@app.post("/api/admin/atm/<atm_id>/override")
+def admin_override(atm_id):
+    if not any(a["atm_id"] == atm_id for a in fleet()):
+        return jsonify(error="unknown ATM"), 404
+    db = sqlite3.connect(DB)
+    try:
+        with db:
+            db.execute("CREATE TABLE IF NOT EXISTS override (atm_id TEXT PRIMARY KEY, at INTEGER)")
+            db.execute("INSERT OR REPLACE INTO override VALUES (?, ?)", (atm_id, int(time.time())))
+    finally:
+        db.close()
+    return jsonify(ok=True)
+
+
+@app.get("/api/admin/fleet")
+def admin_fleet():
+    return jsonify(atms=fleet(request.args.get("demo") != "0"), user=ADMIN_USER, offline_s=OFFLINE_S, threshold=STAGE1_THRESHOLD)
+
+
+@app.get("/api/admin/atm/<atm_id>")
+def admin_atm(atm_id):
+    # rowid order, not timestamp: pre-NTP rows carry seconds-since-boot and would sort wrong
+    tel = rows("SELECT * FROM telemetry WHERE atm_id=? ORDER BY rowid DESC LIMIT 300", atm_id)[::-1]
+    if not tel and atm_id in DEMO_BY_ID:
+        return jsonify(demo_detail(DEMO_BY_ID[atm_id]))
+    inf = rows("SELECT * FROM inference WHERE atm_id=? ORDER BY rowid DESC LIMIT 30", atm_id)[::-1]
+    for r in inf:
+        for k in ("stage2", "topz", "features"):
+            r[k] = json.loads(r[k])
+    st = rows("SELECT json FROM status WHERE atm_id=? ORDER BY rowid DESC LIMIT 1", atm_id)
+    # audio + fusion events (ENABLE_AUDIO firmware); IDLE heartbeats arrive every minute, so fetch enough
+    events = [json.loads(r["json"]) | {"received": r["received"]}
+              for r in rows("SELECT received, json FROM event WHERE atm_id=? ORDER BY rowid DESC LIMIT 60", atm_id)]
+    return jsonify(telemetry=tel, inference=inf, status=json.loads(st[0]["json"]) if st else None,
+                   threshold=STAGE1_THRESHOLD, stage2_labels=STAGE2, events=events)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=DB)
     ap.add_argument("--port", type=int, default=5000)
+    ap.add_argument("--mqtt-host", default="localhost")
+    ap.add_argument("--mqtt-port", type=int, default=1883)
     args = ap.parse_args()
     DB = args.db
+    MQTT = (args.mqtt_host, args.mqtt_port)
+    if not os.environ.get("ATM_ADMIN_PASSWORD"):
+        print(f"admin login: {ADMIN_USER} / {ADMIN_PASSWORD}   (set ATM_ADMIN_PASSWORD to fix it)")
+    if not os.environ.get("ATM_DEMO_PASSWORD"):
+        print(f"demo login: {DEMO_USER} / {DEMO_PASSWORD}   (set ATM_DEMO_PASSWORD to fix it)")
     app.run(host="0.0.0.0", port=args.port, debug=False)

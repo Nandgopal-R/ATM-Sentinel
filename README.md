@@ -61,7 +61,7 @@ Three rules that the ESP32 firmware must also follow:
    debounce and reports the count for that second. **`motion` is a latched
    binary** — the HC-SR501 holds its output HIGH for ~3 s after each detection.
 
-Not in telemetry, deliberately: cash and transaction counts (they come from the
+Not in telemetry, deliberately: transaction counts (they come from the
 bank's transaction system, not a sensor) and network/RSSI state (observable at
 the ESP8266 gateway, so network failure is a gateway rule rather than a
 Stage-2 class).
@@ -197,3 +197,18 @@ basis — which is a standard, publishable methodology as long as it is describe
 as exactly that.
 
 See `qa/CALIBRATION.md` for the justification of every physical constant.
+
+## Audio + sensor-fusion module (TinyML)
+
+An INMP441 microphone (HARDWARE.md, GPIO 32/25/33) feeds a small on-device model that labels each
+~1 s of sound as background, cash dispensing or abnormal, and combines it once per second with the
+SW-420 count, the PIR and the cascade's tamper decision into per-visit events (cash dispensed, short
+visit, visit without cash, abnormal mechanical, suspected tamper, unclear). It runs **beside** the
+two-stage cascade, which is unchanged; the cascade's tamper decision always wins. Events are published
+on `atm/<id>/event` (schema.yaml `event_record`), stored in the `event` table and shown on the admin
+page under "Activity", including how many withdrawals were heard (cash dispensed). No audio
+leaves the node.
+
+Training, data, parity tools and limitations: `ml/audio_tinyml/README.md` and
+`ml/audio_tinyml/esp32_benchmark.md`. Verified so far on a PC and with the ESP32 compiler only;
+on-board timing, CPU and memory are still to be measured.

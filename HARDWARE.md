@@ -17,6 +17,9 @@ Serial: 115200 baud
 | 22 | I2C SCL | BME280, VEML7700, INA219 | shared bus |
 | 26 | input | SW-420 vibration, `OUT` | external pull-up on module |
 | 27 | input | HC-SR501 PIR, `OUT` | `INPUT_PULLDOWN` |
+| 32 | I2S SCK | INMP441 `SCK` | bit clock |
+| 25 | I2S WS | INMP441 `WS` | word select (digital; the ADC2/WiFi limit does not apply) |
+| 33 | I2S SD | INMP441 `SD` | data in |
 | 34 | — | **unused** | reserved, see "Not connected" |
 
 All three I2C devices share a single `Wire` bus at **100 kHz**. This is
@@ -87,8 +90,36 @@ contact with a central pin at rest and breaks contact when disturbed.
 - Output is 3.3 V logic even on a 5 V supply, so it connects directly.
 - Jumper set to **H** (repeat trigger).
 
+### INMP441 microphone (I2S, GPIO 32 / 25 / 33)
+
+- Wiring: VDD -> **3.3 V**, GND -> GND, SCK -> 32, WS -> 25, SD -> 33,
+  **L/R -> GND** (left slot; the firmware reads `I2S_STD_SLOT_LEFT`, so a
+  floating or high L/R reads silence).
+- Separate from the I2C bus. Needs esp32 Arduino core 3.x (`ESP_I2S.h`).
+- Feeds the audio + sensor-fusion module (`ml/audio_tinyml/`,
+  `ENABLE_AUDIO` in the firmware): 16 kHz stream -> 36 features per ~1 s ->
+  INT8 model on the node. Only event JSON is published, never audio.
+- Stand-alone checks: `firmware/tests/inmp441_test/` (levels) and
+  `firmware/tests/atm_tinyml_demo/` (module only, prints `[stats]`).
+- The module reads the same SW-420 count as telemetry (falling edges, 5 ms
+  debounce, per 1 s, max 200). Its tamper level of **75 counts/s is
+  provisional**: it comes from synthetic training data, not this board.
+
+**Verified so far (PC and compiler only, not on hardware):** host parity of
+the C++ features and model against the Python reference (self-test 9/9,
+36/36 windows, max feature diff 7.9e-6), and a clean compile of the
+integrated firmware (1,072,850 B flash, 99,852 B globals, no new warnings).
+Timing, CPU load, heap and stack on the board are **to be measured**: see
+`ml/audio_tinyml/esp32_benchmark.md`.
+
 ### BME280 (I2C)
 
+- **Humidity is disabled** (`ENABLE_HUMIDITY 0` in the firmware): on 2026-10-20 the humidity
+  element stuck at exactly 100.00 % while temperature and pressure stayed plausible. Humidity is
+  left out of telemetry (stored as NULL); the cascade's 12 humidity-derived inputs are fed z = 0 (training mean), so it
+  no longer raises SENSOR_FAULT for it. HIGH_HUMIDITY cannot be detected. On the test split every
+  other class keeps its recall (overall accuracy 0.827 -> 0.693, all of the drop is HIGH_HUMIDITY).
+  Replace the module and set `ENABLE_HUMIDITY 1` to restore it.
 - The die self-heats, and the module sits near the ESP32 which warms under
   WiFi load. Temperature readings run **1–2 °C high** on the breadboard.
 - Pressure is of limited value here. Absolute barometric pressure tracks
@@ -144,9 +175,6 @@ Deliberate omissions. Code should **not** reference these.
   unused. If it is ever connected: ADC1 only, powered at 3.3 V (not 5 V, which
   would put ~5 V peaks on the ADC pin), through a 1 kΩ series resistor, and
   fed from a low-voltage AC source — never mains.
-- **Microphone / audio channel** — dropped from the design. The report
-  specified an INMP441; no microphone is present and there is no audio
-  feature path.
 - **Bluetooth module** — an external module is in the parts inventory but is
   not wired. The ESP32 has Bluetooth built in, making it redundant.
 
@@ -154,9 +182,12 @@ Deliberate omissions. Code should **not** reference these.
 
 ## Gateway
 
-The **ESP8266 gateway is not physically wired to the ESP32.** Communication is
-wireless — ESP-NOW from node to gateway, then WiFi/MQTT from gateway to cloud.
-There is no serial link between the two boards.
+The design has an **ESP8266 gateway** (ESP-NOW from node to gateway, then
+WiFi/MQTT onward). **It is not implemented.** The current firmware connects to
+WiFi itself and publishes MQTT straight to Mosquitto on the laptop
+(`atm/<id>/telemetry`, `inference`, `status`, `event`). There is no ESP-NOW
+code in the repo. If the gateway is built later, note that event JSON
+(338-370 B) exceeds the 250 B ESP-NOW frame and would need a compact format.
 
 ---
 
